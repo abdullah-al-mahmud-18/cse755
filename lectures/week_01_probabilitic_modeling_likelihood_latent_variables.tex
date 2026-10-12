@@ -1,20 +1,11 @@
-\section{How these notes are organized}
-
-There is one section for each of the 34 slides of Lecture 1, in slide order. Inside a section you will usually find three things. First, a short description of what the slide actually looks like, including its diagrams. Second, a plain-English explanation of the ideas. Third, for every equation, a list of what each symbol stands for, followed by what the equation is saying in everyday words.
-
-The Week 1 hand notes follow the same order as the lecture. Where they add a useful detail, it is included in the matching slide section and labeled \textit{Hand notes}. Items that do not belong to one slide are collected in Appendix~A.
-
-Homework 1 is not solved here, because the homework asks for your own derivations. Appendix~B only maps each homework problem to the slides that cover its ideas.
+\section{Probabilistic Modeling, Likelihood, and Latent Variables}
 
 \textbf{A few reading tips.} A superscript in parentheses, as in $\mathbf{x}^{(n)}$, means ``the $n$-th example in the dataset.'' It is not a power. A subscript, as in $x_d$ or $\pi_k$, picks out a coordinate inside one example or one mixture component. A bold letter such as $\mathbf{x}$ or $\mathbf{z}$ usually means a list of numbers (a vector).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \subsection*{Slide 1: Title page}
-\addcontentsline{toc}{subsection}{Slide 1: Title page}
 
-\textbf{What the slide shows.} The course title ``Fundamentals of Generative Models,'' the subtitle ``Probabilistic modeling, likelihood, and latent variables,'' and the course name, term (Fall 2026), and week (Week 1).
-
-\textbf{Plain English.} The three keywords in the subtitle are the whole lecture.
+The three keywords in the subtitle are the whole lecture.
 \begin{itemize}
 \item \textit{Probabilistic modeling} means describing data using probabilities.
 \item \textit{Likelihood} is a score for how well a particular setting of a model explains the data we actually have.
@@ -23,11 +14,8 @@ Homework 1 is not solved here, because the homework asks for your own derivation
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \subsection*{Slide 2: Where this lecture sits}
-\addcontentsline{toc}{subsection}{Slide 2: Where this lecture sits}
 
-\textbf{What the slide shows.} Two columns of bullets and one callout. The left column lists today's topics: probability as the language of generation, likelihood and maximum likelihood, latent-variable models, and generative versus discriminative models. Under it, ``Next (Week 2)'' lists autoregressive factorization, PixelRNN, and PixelCNN. The right column lists readings: Bishop's \textit{PRML} Ch.~8--10, Murphy's \textit{PML: An Introduction} Ch.~3, and Tomczak's \textit{Deep Generative Modeling} Ch.~1. The callout says: ``Notation used all term: Data $\mathbf{x}$, label $y$, latent $\mathbf{z}$, parameters $\theta$.''
-
-\textbf{Plain English.} The callout is the most important part. These four letters appear on almost every slide for the rest of the term.
+These four letters appear on almost every slide for the rest of the term.
 \begin{itemize}
 \item $\mathbf{x}$: one piece of data, for example one picture. It is bold because it is usually a list of numbers (the pixel values).
 \item $y$: a label attached to the data, such as ``cat'' or ``dog.''
@@ -35,26 +23,10 @@ Homework 1 is not solved here, because the homework asks for your own derivation
 \item $\theta$: all the adjustable numbers inside the model (its ``knobs''). Training means turning these knobs.
 \end{itemize}
 
-\textbf{A detail to check.} This slide lists Bishop Ch.~8--10, but the references slide (slide~34) and the hand notes both say Ch.~8--9. Slide~34 describes those chapters as covering graphical models, mixtures, and EM.
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\subsection*{Slide 3: Learning objectives}
-\addcontentsline{toc}{subsection}{Slide 3: Learning objectives}
-
-The slide lists five numbered goals. In plain words, and with the slide that covers each:
-\begin{enumerate}
-\item Write the joint, marginal, and conditional distributions for a model, and say which one is being learned (slides 8--9).
-\item Explain the difference between a likelihood and a probability, and state the maximum-likelihood objective for i.i.d.\ data (slides 10--12).
-\item Explain what a latent variable is, and write the marginal likelihood as an integral (or sum) over $\mathbf{z}$ (slides 19--21).
-\item Contrast generative models, which learn $p(\mathbf{x})$ or $p(\mathbf{x},y)$, with discriminative models, which learn $p(y\mid\mathbf{x})$ (slides 15--18).
-\item Place VAEs, GANs, flows, diffusion, and autoregressive models on one map of what each can and cannot do (slides 27--28).
-\end{enumerate}
-
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \subsection*{Slide 4: What problem are we solving?}
-\addcontentsline{toc}{subsection}{Slide 4: What problem are we solving?}
 
-\textbf{What the slide shows.} A box titled ``Generative modeling'' with the following definition: given examples
+``Generative modeling'' definition: given examples
 \[
 \mathcal{D}=\{\mathbf{x}^{(1)},\dots,\mathbf{x}^{(N)}\}
 \]
@@ -74,68 +46,112 @@ drawn from an unknown data distribution $p_{\text{data}}(\mathbf{x})$, learn a m
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \subsection*{Slide 5: Three questions every generative model answers}
-\addcontentsline{toc}{subsection}{Slide 5: Three questions every generative model answers}
-
-\textbf{What the slide shows.} Three teal boxes side by side.
 \begin{itemize}
-\item \textbf{1.\ Density:} ``How probable is this $\mathbf{x}$?'' with $p_\theta(\mathbf{x})=\,?$
+\item \textbf{1.\ Density:} ``How probable is this $\mathbf{x}$?'' with $p_\theta(\mathbf{x})=\,?$ \\
+    \begin{scriptsize}
+    Imagine a model that has studied thousands of photos of cats. 
+    Now you hand it a new picture, x, and ask: “Does this look like the kind of thing you’d normally see?” A normal cat photo gets a high number. 
+    \end{scriptsize}
 \item \textbf{2.\ Sample:} ``How do I draw a new $\mathbf{x}$?'' with $\mathbf{x}\sim p_\theta$.
-\item \textbf{3.\ Represent:} ``What hidden factors explain $\mathbf{x}$?'' with ``$\mathbf{z}$ such that $\mathbf{x}\approx g(\mathbf{z})$.''
+\item \textbf{3.\ Represent:} ``What hidden factors explain $\mathbf{x}$?'' with ``$\mathbf{z}$ such that $\mathbf{x}\approx g(\mathbf{z})$.'' \\
+    \begin{scriptsize}
+        Think about describing a cat photo to a friend over the phone. You wouldn’t read out every pixel. You’d say: “orange cat, sitting, facing left, green eyes, on a couch.” Those few details are enough for your friend to picture something very close to the real photo.
+        Those details are the hidden factors. They’re “hidden” because you can’t see them written anywhere in the raw pixels. The model has to figure them out.
+        \begin{itemize}
+            \item x is the actual example, like the cat photo with its millions of pixel values.
+            \item z is the short summary of hidden factors (color, pose, lighting, and so on). It’s called a latent code, and it’s much smaller than x.
+            \item g is a function that takes the summary z and rebuilds a picture from it.
+            \item x $\approx$ g(z) means “if I rebuild the picture from the summary, I get something close to the original.” It’s “approximately equal,” not exact, because a short summary can’t hold every tiny detail.
+        \end{itemize}
+    \end{scriptsize}
 \end{itemize}
-Below the boxes: families of models differ in \textit{which} of these three are tractable. Autoregressive models and flows give an exact density, with exact or sequential sampling. VAEs give a lower bound on the density and a latent code. GANs and many diffusion samplers give strong samples but no tractable $p_\theta(\mathbf{x})$.
-
-\textbf{What the symbols stand for.}
-\begin{itemize}
-\item $g(\mathbf{z})$: a function that ``renders'' hidden factors $\mathbf{z}$ into an approximate data point. The sign $\approx$ means ``roughly equal.''
-\item \textit{Tractable}: we can actually compute it in a reasonable amount of time. \textit{Intractable} is the opposite.
-\end{itemize}
-
-\textbf{Plain English.} Picture a model of faces. Question 1 asks how face-like a given picture is. Question 2 asks the model to invent a brand-new face. Question 3 asks for a short description (like slider settings for age, smile, and head angle) that could be used to rebuild the face. No single type of model makes all three easy, which is why the course studies several families.
-
-\textit{Hand notes.} They give the same three questions as a table with columns Question, Object, and Name: density estimation is $p_\theta(\mathbf{x})$, sampling is $\mathbf{x}\sim p_\theta$, and representation is a latent $\mathbf{z}$. They add that this week ``fixes the language'' and does not yet choose an architecture.
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\subsection*{Slide 6: A picture of the task}
-\addcontentsline{toc}{subsection}{Slide 6: A picture of the task}
-
-\textbf{What the slide shows.} A flow diagram read left to right. A box ``Dataset $\mathbf{x}^{(1)},\dots,\mathbf{x}^{(N)}$'' has an arrow labeled ``fit $\theta$'' pointing to a box ``Model $p_\theta(\mathbf{x})$.'' Two arrows leave the model box. One goes to ``Density $p_\theta(\mathbf{x}^*)$'' and the other to ``New sample $\mathbf{x}^{\text{new}}$.'' A caption says that fitting means choosing $\theta$ so that $p_\theta$ is close to $p_{\text{data}}$, and that ``close'' will be made precise using the Kullback--Leibler divergence and the likelihood.
-
-\textbf{Plain English.} Training is the arrow on the left: look at the data and set the knobs $\theta$. Using the trained model is the two arrows on the right. You can hand it a specific point $\mathbf{x}^*$ (the star marks a particular point you want to score) and get a plausibility number, or you can ask it for a fresh sample $\mathbf{x}^{\text{new}}$.
-
-The caption makes a promise: ``close'' is vague, so the next few slides define it exactly. The tool for ``close'' is the KL divergence, and the tool for ``choosing $\theta$'' is the likelihood.
-
-\textit{Hand notes.} The same picture appears with the boxes labeled ``Dataset $\mathcal{D}$,'' ``Fit $p_\theta(\mathbf{x})$,'' ``Score a new $\mathbf{x}^*$,'' and ``Draw $\mathbf{x}^{\text{new}}$.''
+Picture a model of faces. Question 1 asks how face-like a given picture is. Question 2 asks the model to invent a brand-new face. Question 3 asks for a short description (like slider settings for age, smile, and head angle) that could be used to rebuild the face. No single type of model makes all three easy, which is why the course studies several families.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \subsection*{Slide 7: Random variables}
-\addcontentsline{toc}{subsection}{Slide 7: Random variables}
 
-\textbf{What the slide shows.} A definition box and two columns. The definition: a random variable $X$ is a ``measurable map from outcomes to numbers (or vectors).'' We write $\mathbf{x}$ for a concrete value and $p(\mathbf{x})$ for the distribution of $X$. The left column is the probability mass function (discrete case). The right column is the probability density function (continuous case). Under the left column is the example of a pixel channel $x\in\{0,1,\dots,255\}$. Under the right is the warning that $p(\mathbf{x})$ can exceed 1 and that only integrals over regions are probabilities.
+A random variable is a rule that assigns a number to each possible result of a random experiment.
 
-\textbf{Plain English.} A random variable is a number whose value is decided by chance, like the result of rolling a die. The phrase ``measurable map'' is the formal way of saying ``a rule that gives each possible outcome a number.'' A capital letter $X$ is the chancy quantity itself. A lowercase letter $x$ is one particular value it might take.
-
-\textbf{Discrete case (mass function).}
+For example, when you toss a coin, the result can be Heads or Tails. We can define a random variable \(X\) like this:
 \[
-p(x)\ge 0,\qquad \sum_x p(x)=1.
+X =
+\begin{cases}
+1, & \text{if the result is Heads},\\
+0, & \text{if the result is Tails}.
+\end{cases}
 \]
-\begin{itemize}
-\item $p(x)$: the probability that the variable equals exactly the value $x$.
-\item $\sum_x$: add up over every possible value of $x$.
-\end{itemize}
-The equation says two things: no probability is negative, and all the probabilities together add up to 1 (something must happen). A pixel channel has 256 possible values, so $p$ is 256 numbers that add up to 1.
+Before tossing the coin, we do not know whether \(X\) will be 0 or 1.
 
-\textbf{Continuous case (density function).}
+When rolling a six-sided die, we can define \(X\) as the number shown. The possible values are 1, 2, 3, 4, 5, and 6.
+
+There are two types of random variables:
+\begin{itemize}[leftmargin=*]
+    \item \textbf{Discrete random variable:} Takes separate, countable values. For example, the number of students absent from a class can be 0, 1, 2, 3, and so on.
+    \item \textbf{Continuous random variable:} Can take any value within a range, including decimal values. For example, a student's height can be 150 cm, 150.5 cm, or 150.55 cm.
+\end{itemize}
+
+\textbf{Probability Mass Function (PMF)}
+
+A Probability Mass Function (PMF) gives the probability of each specific value of a discrete random variable.
+
+For example, suppose you roll a fair six-sided die. Let \(X\) be the number shown. Each number has the same probability:
 \[
-p(\mathbf{x})\ge 0,\qquad \int p(\mathbf{x})\,d\mathbf{x}=1.
+P(X=x)=\frac{1}{6}, \qquad x \in \{1,2,3,4,5,6\}.
 \]
-\begin{itemize}
-\item $\int \cdots d\mathbf{x}$: the continuous version of adding. You add up infinitely many infinitely thin slices.
-\item $p(\mathbf{x})$: the \textit{height} of a curve at the point $\mathbf{x}$. It is a density, not a probability.
-\end{itemize}
-The equation says the curve never dips below zero and the total area under it is 1.
+So, the probability of rolling a 3 is \(P(X=3)=\frac{1}{6}\).
 
-\textbf{Why a density can be bigger than 1.} For a continuous variable, the chance of hitting one exact value is zero. Probability lives in \textit{areas}: the chance of landing in a range is the area under the curve over that range. A curve can be tall and thin and still have total area 1. For example, a flat curve spread over a width of only $0.25$ must have height $4$, because $0.25\times 4=1$. The height 4 is allowed. An \textit{area} bigger than 1 would not be.
+Here is another example. Toss a coin twice and let \(X\) be the number of Heads. The possible values of \(X\) are 0, 1, and 2:
+\[
+P(X=0)=\frac{1}{4}, \qquad
+P(X=1)=\frac{1}{2}, \qquad
+P(X=2)=\frac{1}{4}.
+\]
+The probabilities add up to 1. This is true for every PMF.
 
+In simple words, a \textbf{PMF gives the probability of each individual value}.
+
+\textbf{Probability Density Function (PDF)}
+
+A Probability Density Function (PDF) is used for a continuous random variable, such as a person's height, the time needed to finish a race, or the temperature of a room.
+
+A continuous variable can take many possible values, including decimal values. Because there are so many possible values, we usually cannot list the probability of every value in a table. Instead, a PDF describes how probability is spread across the possible values.
+
+A PDF is often shown as a curve. The area under the curve over a range gives the probability that the value falls within that range. For example, if \(X\) is a student's height, then
+\[
+P(150 \leq X \leq 160)
+\]
+means the probability that the student's height is between 150 cm and 160 cm.
+
+For a continuous random variable, the probability of one exact value is zero in the ideal mathematical model:
+\[
+P(X=160)=0.
+\]
+This does not mean a student cannot be measured as 160 cm tall. It means that probability is calculated over a range rather than one infinitely precise value.
+
+The total area under a PDF curve is 1.
+
+\textbf{Difference Between PMF and PDF}
+
+\begin{center}
+\begin{tabular}{>{\raggedright\arraybackslash}p{0.22\textwidth} >{\raggedright\arraybackslash}p{0.34\textwidth} >{\raggedright\arraybackslash}p{0.34\textwidth}}
+\toprule
+\textbf{Feature} & \textbf{PMF} & \textbf{PDF} \\
+\midrule
+Used for & Discrete random variables & Continuous random variables \\
+Example & Number shown on a die & Student's height \\
+Probability & Gives probability for each specific value & Area over a range gives probability \\
+Total & All probabilities add up to 1 & Total area under the curve is 1 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\textbf{Remember}
+
+Use a \textbf{PMF} when asking for the probability of an individual, countable result, such as rolling exactly 4 on a die.
+
+Use a \textbf{PDF} when working with a continuous quantity, such as the probability that a student's height is between 150 cm and 160 cm.
+
+The main difference is that a PMF gives probabilities for individual values, while a PDF uses area under a curve to find probabilities over ranges.
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \subsection*{Slide 8: Joint, marginal, conditional}
 \addcontentsline{toc}{subsection}{Slide 8: Joint, marginal, conditional}
