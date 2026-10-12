@@ -1,0 +1,935 @@
+\section{How these notes are organized}
+
+There is one section for each of the 34 slides of Lecture 1, in slide order. Inside a section you will usually find three things. First, a short description of what the slide actually looks like, including its diagrams. Second, a plain-English explanation of the ideas. Third, for every equation, a list of what each symbol stands for, followed by what the equation is saying in everyday words.
+
+The Week 1 hand notes follow the same order as the lecture. Where they add a useful detail, it is included in the matching slide section and labeled \textit{Hand notes}. Items that do not belong to one slide are collected in Appendix~A.
+
+Homework 1 is not solved here, because the homework asks for your own derivations. Appendix~B only maps each homework problem to the slides that cover its ideas.
+
+\textbf{A few reading tips.} A superscript in parentheses, as in $\mathbf{x}^{(n)}$, means ``the $n$-th example in the dataset.'' It is not a power. A subscript, as in $x_d$ or $\pi_k$, picks out a coordinate inside one example or one mixture component. A bold letter such as $\mathbf{x}$ or $\mathbf{z}$ usually means a list of numbers (a vector).
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\subsection*{Slide 1: Title page}
+\addcontentsline{toc}{subsection}{Slide 1: Title page}
+
+\textbf{What the slide shows.} The course title ``Fundamentals of Generative Models,'' the subtitle ``Probabilistic modeling, likelihood, and latent variables,'' and the course name, term (Fall 2026), and week (Week 1).
+
+\textbf{Plain English.} The three keywords in the subtitle are the whole lecture.
+\begin{itemize}
+\item \textit{Probabilistic modeling} means describing data using probabilities.
+\item \textit{Likelihood} is a score for how well a particular setting of a model explains the data we actually have.
+\item \textit{Latent variables} are hidden quantities that we never see in the data but that help explain what we do see.
+\end{itemize}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\subsection*{Slide 2: Where this lecture sits}
+\addcontentsline{toc}{subsection}{Slide 2: Where this lecture sits}
+
+\textbf{What the slide shows.} Two columns of bullets and one callout. The left column lists today's topics: probability as the language of generation, likelihood and maximum likelihood, latent-variable models, and generative versus discriminative models. Under it, ``Next (Week 2)'' lists autoregressive factorization, PixelRNN, and PixelCNN. The right column lists readings: Bishop's \textit{PRML} Ch.~8--10, Murphy's \textit{PML: An Introduction} Ch.~3, and Tomczak's \textit{Deep Generative Modeling} Ch.~1. The callout says: ``Notation used all term: Data $\mathbf{x}$, label $y$, latent $\mathbf{z}$, parameters $\theta$.''
+
+\textbf{Plain English.} The callout is the most important part. These four letters appear on almost every slide for the rest of the term.
+\begin{itemize}
+\item $\mathbf{x}$: one piece of data, for example one picture. It is bold because it is usually a list of numbers (the pixel values).
+\item $y$: a label attached to the data, such as ``cat'' or ``dog.''
+\item $\mathbf{z}$: a hidden variable that is part of the model but never appears in the dataset.
+\item $\theta$: all the adjustable numbers inside the model (its ``knobs''). Training means turning these knobs.
+\end{itemize}
+
+\textbf{A detail to check.} This slide lists Bishop Ch.~8--10, but the references slide (slide~34) and the hand notes both say Ch.~8--9. Slide~34 describes those chapters as covering graphical models, mixtures, and EM.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\subsection*{Slide 3: Learning objectives}
+\addcontentsline{toc}{subsection}{Slide 3: Learning objectives}
+
+The slide lists five numbered goals. In plain words, and with the slide that covers each:
+\begin{enumerate}
+\item Write the joint, marginal, and conditional distributions for a model, and say which one is being learned (slides 8--9).
+\item Explain the difference between a likelihood and a probability, and state the maximum-likelihood objective for i.i.d.\ data (slides 10--12).
+\item Explain what a latent variable is, and write the marginal likelihood as an integral (or sum) over $\mathbf{z}$ (slides 19--21).
+\item Contrast generative models, which learn $p(\mathbf{x})$ or $p(\mathbf{x},y)$, with discriminative models, which learn $p(y\mid\mathbf{x})$ (slides 15--18).
+\item Place VAEs, GANs, flows, diffusion, and autoregressive models on one map of what each can and cannot do (slides 27--28).
+\end{enumerate}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\subsection*{Slide 4: What problem are we solving?}
+\addcontentsline{toc}{subsection}{Slide 4: What problem are we solving?}
+
+\textbf{What the slide shows.} A box titled ``Generative modeling'' with the following definition: given examples
+\[
+\mathcal{D}=\{\mathbf{x}^{(1)},\dots,\mathbf{x}^{(N)}\}
+\]
+drawn from an unknown data distribution $p_{\text{data}}(\mathbf{x})$, learn a model $p_\theta(\mathbf{x})$ that (1) assigns high probability to realistic $\mathbf{x}$, called \textbf{density estimation}, and (2) can draw new $\mathbf{x}\sim p_\theta$ that were not in $\mathcal{D}$, called \textbf{sampling}. Below the box: examples of $\mathbf{x}$ are an image, a sentence, a waveform, a molecule, or a video clip. If labels exist, the same idea extends to the joint $p_\theta(\mathbf{x},y)$.
+
+\textbf{What each symbol stands for.}
+\begin{itemize}
+\item $\mathcal{D}$: the dataset, the collection of examples we are given.
+\item $\mathbf{x}^{(n)}$: the $n$-th example, for example the $n$-th photo.
+\item $N$: how many examples there are.
+\item $p_{\text{data}}(\mathbf{x})$: the true, unknown ``recipe'' by which the world produces data. We never get to see it, only samples from it.
+\item $p_\theta(\mathbf{x})$: our model's guess at that recipe. The subscript $\theta$ reminds us that the guess depends on the knobs $\theta$.
+\item $\mathbf{x}\sim p_\theta$: read ``$\mathbf{x}$ is drawn from $p_\theta$.''
+\end{itemize}
+
+\textbf{What it says.} Think of $p_{\text{data}}$ as a secret recipe book and the dataset as a handful of dishes made from it. We want to build a cook (the model) with two abilities. First, shown any dish, the cook can say how typical it is of the real cuisine (density estimation). Second, the cook can make new dishes that fit the cuisine but are not copies of the ones we tasted (sampling).
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\subsection*{Slide 5: Three questions every generative model answers}
+\addcontentsline{toc}{subsection}{Slide 5: Three questions every generative model answers}
+
+\textbf{What the slide shows.} Three teal boxes side by side.
+\begin{itemize}
+\item \textbf{1.\ Density:} ``How probable is this $\mathbf{x}$?'' with $p_\theta(\mathbf{x})=\,?$
+\item \textbf{2.\ Sample:} ``How do I draw a new $\mathbf{x}$?'' with $\mathbf{x}\sim p_\theta$.
+\item \textbf{3.\ Represent:} ``What hidden factors explain $\mathbf{x}$?'' with ``$\mathbf{z}$ such that $\mathbf{x}\approx g(\mathbf{z})$.''
+\end{itemize}
+Below the boxes: families of models differ in \textit{which} of these three are tractable. Autoregressive models and flows give an exact density, with exact or sequential sampling. VAEs give a lower bound on the density and a latent code. GANs and many diffusion samplers give strong samples but no tractable $p_\theta(\mathbf{x})$.
+
+\textbf{What the symbols stand for.}
+\begin{itemize}
+\item $g(\mathbf{z})$: a function that ``renders'' hidden factors $\mathbf{z}$ into an approximate data point. The sign $\approx$ means ``roughly equal.''
+\item \textit{Tractable}: we can actually compute it in a reasonable amount of time. \textit{Intractable} is the opposite.
+\end{itemize}
+
+\textbf{Plain English.} Picture a model of faces. Question 1 asks how face-like a given picture is. Question 2 asks the model to invent a brand-new face. Question 3 asks for a short description (like slider settings for age, smile, and head angle) that could be used to rebuild the face. No single type of model makes all three easy, which is why the course studies several families.
+
+\textit{Hand notes.} They give the same three questions as a table with columns Question, Object, and Name: density estimation is $p_\theta(\mathbf{x})$, sampling is $\mathbf{x}\sim p_\theta$, and representation is a latent $\mathbf{z}$. They add that this week ``fixes the language'' and does not yet choose an architecture.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\subsection*{Slide 6: A picture of the task}
+\addcontentsline{toc}{subsection}{Slide 6: A picture of the task}
+
+\textbf{What the slide shows.} A flow diagram read left to right. A box ``Dataset $\mathbf{x}^{(1)},\dots,\mathbf{x}^{(N)}$'' has an arrow labeled ``fit $\theta$'' pointing to a box ``Model $p_\theta(\mathbf{x})$.'' Two arrows leave the model box. One goes to ``Density $p_\theta(\mathbf{x}^*)$'' and the other to ``New sample $\mathbf{x}^{\text{new}}$.'' A caption says that fitting means choosing $\theta$ so that $p_\theta$ is close to $p_{\text{data}}$, and that ``close'' will be made precise using the Kullback--Leibler divergence and the likelihood.
+
+\textbf{Plain English.} Training is the arrow on the left: look at the data and set the knobs $\theta$. Using the trained model is the two arrows on the right. You can hand it a specific point $\mathbf{x}^*$ (the star marks a particular point you want to score) and get a plausibility number, or you can ask it for a fresh sample $\mathbf{x}^{\text{new}}$.
+
+The caption makes a promise: ``close'' is vague, so the next few slides define it exactly. The tool for ``close'' is the KL divergence, and the tool for ``choosing $\theta$'' is the likelihood.
+
+\textit{Hand notes.} The same picture appears with the boxes labeled ``Dataset $\mathcal{D}$,'' ``Fit $p_\theta(\mathbf{x})$,'' ``Score a new $\mathbf{x}^*$,'' and ``Draw $\mathbf{x}^{\text{new}}$.''
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\subsection*{Slide 7: Random variables}
+\addcontentsline{toc}{subsection}{Slide 7: Random variables}
+
+\textbf{What the slide shows.} A definition box and two columns. The definition: a random variable $X$ is a ``measurable map from outcomes to numbers (or vectors).'' We write $\mathbf{x}$ for a concrete value and $p(\mathbf{x})$ for the distribution of $X$. The left column is the probability mass function (discrete case). The right column is the probability density function (continuous case). Under the left column is the example of a pixel channel $x\in\{0,1,\dots,255\}$. Under the right is the warning that $p(\mathbf{x})$ can exceed 1 and that only integrals over regions are probabilities.
+
+\textbf{Plain English.} A random variable is a number whose value is decided by chance, like the result of rolling a die. The phrase ``measurable map'' is the formal way of saying ``a rule that gives each possible outcome a number.'' A capital letter $X$ is the chancy quantity itself. A lowercase letter $x$ is one particular value it might take.
+
+\textbf{Discrete case (mass function).}
+\[
+p(x)\ge 0,\qquad \sum_x p(x)=1.
+\]
+\begin{itemize}
+\item $p(x)$: the probability that the variable equals exactly the value $x$.
+\item $\sum_x$: add up over every possible value of $x$.
+\end{itemize}
+The equation says two things: no probability is negative, and all the probabilities together add up to 1 (something must happen). A pixel channel has 256 possible values, so $p$ is 256 numbers that add up to 1.
+
+\textbf{Continuous case (density function).}
+\[
+p(\mathbf{x})\ge 0,\qquad \int p(\mathbf{x})\,d\mathbf{x}=1.
+\]
+\begin{itemize}
+\item $\int \cdots d\mathbf{x}$: the continuous version of adding. You add up infinitely many infinitely thin slices.
+\item $p(\mathbf{x})$: the \textit{height} of a curve at the point $\mathbf{x}$. It is a density, not a probability.
+\end{itemize}
+The equation says the curve never dips below zero and the total area under it is 1.
+
+\textbf{Why a density can be bigger than 1.} For a continuous variable, the chance of hitting one exact value is zero. Probability lives in \textit{areas}: the chance of landing in a range is the area under the curve over that range. A curve can be tall and thin and still have total area 1. For example, a flat curve spread over a width of only $0.25$ must have height $4$, because $0.25\times 4=1$. The height 4 is allowed. An \textit{area} bigger than 1 would not be.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\subsection*{Slide 8: Joint, marginal, conditional}
+\addcontentsline{toc}{subsection}{Slide 8: Joint, marginal, conditional}
+
+\textbf{What the slide shows.} Let $\mathbf{x}$ be an image and $y\in\{\text{cat},\text{dog}\}$ a label. Three bullets define the \textbf{joint} $p(\mathbf{x},y)$, the \textbf{marginal} $p(\mathbf{x})$, and the \textbf{conditional} $p(y\mid\mathbf{x})$. A red callout at the bottom states the product rule.
+
+\textbf{Joint.} $p(\mathbf{x},y)$ is the probability of this image \textit{and} this label together.
+
+\textbf{Marginal.}
+\[
+p(\mathbf{x})=\sum_y p(\mathbf{x},y).
+\]
+\begin{itemize}
+\item $p(\mathbf{x})$: the probability of the image by itself.
+\item $\sum_y$: add over every possible label.
+\end{itemize}
+This says: to get the chance of seeing this image regardless of its label, add the chance of ``this image with label cat'' and ``this image with label dog.'' This is called ``summing the label away.'' For a continuous variable the sum becomes an integral.
+
+\textbf{Conditional.}
+\[
+p(y\mid\mathbf{x})=\frac{p(\mathbf{x},y)}{p(\mathbf{x})}.
+\]
+\begin{itemize}
+\item The vertical bar $\mid$ is read ``given.''
+\item $p(y\mid\mathbf{x})$: the probability of label $y$ \textit{if we already know the image is} $\mathbf{x}$.
+\end{itemize}
+This says: restrict attention to the world where the image is $\mathbf{x}$, and ask what fraction of that world has label $y$. We divide by $p(\mathbf{x})$ so the numbers over all labels add up to 1. It only makes sense when $p(\mathbf{x})>0$ (hand notes).
+
+\textbf{Product rule.}
+\[
+p(\mathbf{x},y)=p(y\mid\mathbf{x})\,p(\mathbf{x})=p(\mathbf{x}\mid y)\,p(y).
+\]
+This says: the chance of two things together equals the chance of one times the chance of the other given the first, and you may start with either. For example, the chance of ``rain and traffic'' equals the chance of rain times the chance of traffic given rain. It also equals the chance of traffic times the chance of rain given traffic. The first form is just the definition of the conditional with both sides multiplied by $p(\mathbf{x})$.
+
+The slide's key sentence is that both factorizations are true, but they \textit{suggest different models}. Which factor you choose to learn decides the kind of model you build (slides 15--16).
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\subsection*{Slide 9: Bayes' rule}
+\addcontentsline{toc}{subsection}{Slide 9: Bayes' rule}
+
+\textbf{What the slide shows.} On top, the equation with labels drawn under and over its pieces. On the lower left, four bullets. On the lower right, a small diagram: a circle $y$ (reddish) with ``$p(y)$'' written beside it, an arrow downward labeled ``$p(\mathbf{x}\mid y)$,'' and a circle $\mathbf{x}$ (bluish) at the bottom. Caption: ``Directed model: sample a label, then an image.''
+
+\[
+\underbrace{p(y\mid\mathbf{x})}_{\text{posterior}}
+=\frac{\overbrace{p(\mathbf{x}\mid y)}^{\text{likelihood}}\;\overbrace{p(y)}^{\text{prior}}}{\underbrace{p(\mathbf{x})}_{\text{evidence}}}.
+\]
+
+\textbf{The four named parts.}
+\begin{itemize}
+\item \textbf{Prior} $p(y)$: your belief about the label before looking at the image.
+\item \textbf{Likelihood} $p(\mathbf{x}\mid y)$: how plausible this image is if the label were $y$.
+\item \textbf{Posterior} $p(y\mid\mathbf{x})$: your updated belief about the label after seeing the image.
+\item \textbf{Evidence} $p(\mathbf{x})=\sum_y p(\mathbf{x}\mid y)\,p(y)$: the overall probability of the image, adding up over all labels.
+\end{itemize}
+
+\textbf{What the equation says.} Bayes' rule flips the direction of ``given.'' It starts from what is easy to state (how images look for each label, plus how common each label is) and produces what a classifier wants (how likely each label is for this image). It comes from setting the two product-rule forms equal, $p(y\mid\mathbf{x})p(\mathbf{x})=p(\mathbf{x}\mid y)p(y)$, and dividing by $p(\mathbf{x})$.
+
+\textbf{Small numeric example} (pretend $\mathbf{x}$ is a simple discrete observation so the numbers are probabilities). Suppose $p(\text{cat})=0.7$ and $p(\text{dog})=0.3$. For the image we observed, suppose $p(\mathbf{x}\mid\text{cat})=0.2$ and $p(\mathbf{x}\mid\text{dog})=0.5$. The evidence is $0.2\cdot 0.7+0.5\cdot 0.3=0.14+0.15=0.29$. So the posterior for cat is $0.14/0.29\approx 0.48$ and for dog is $0.15/0.29\approx 0.52$. Before seeing the image we favored cat. The image looked more typical of dogs, and that flipped the belief.
+
+\textbf{The diagram.} The arrow points in the \textit{sampling} direction: pick a label from the prior, then draw an image from the class-conditional distribution. The posterior runs \textit{against} the arrow, from image back to label, and is exactly what a classifier computes (hand notes).
+
+\textit{Hand notes: same names, two uses.} The four names are reused later with a latent $\mathbf{z}$ in place of the label $y$:
+
+\begin{center}
+\begin{tabular}{lll}
+\toprule
+Name & With a label & With a latent \\
+\midrule
+Prior & $p(y)$ & $p(\mathbf{z})$ \\
+Likelihood & $p(\mathbf{x}\mid y)$ & $p(\mathbf{x}\mid\mathbf{z})$ \\
+Joint & $p(\mathbf{x},y)$ & $p(\mathbf{x},\mathbf{z})$ \\
+Posterior & $p(y\mid\mathbf{x})$ & $p(\mathbf{z}\mid\mathbf{x})$ \\
+Evidence / marginal & $p(\mathbf{x})$ & $p(\mathbf{x})=\int p(\mathbf{x},\mathbf{z})\,d\mathbf{z}$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\subsection*{Slide 10: Independence and the i.i.d.\ assumption}
+\addcontentsline{toc}{subsection}{Slide 10: Independence and the i.i.d.\ assumption}
+
+\textbf{What the slide shows.} Three boxes: Independence, Conditional independence, and i.i.d.\ data.
+
+\textbf{Independence.}
+\[
+p(x,y)=p(x)\,p(y)\quad\Longleftrightarrow\quad p(x\mid y)=p(x).
+\]
+Two variables are independent if knowing one tells you nothing about the other. A coin flip and a die roll are independent. The second form says it directly: learning $y$ does not change your belief about $x$.
+
+\textbf{Conditional independence.}
+\[
+X\perp Y\mid Z\quad\text{means}\quad p(x,y\mid z)=p(x\mid z)\,p(y\mid z).
+\]
+The symbol $\perp$ means ``independent of,'' and $\mid Z$ means ``once $Z$ is known.'' The slide's gloss is that knowing $Z$ makes $X$ irrelevant for predicting $Y$. Said another way: once you know $Z$, also learning $X$ adds nothing about $Y$. Example: two people each carry an umbrella because of the weather. If you know it is raining, one person's umbrella tells you nothing more about the other's. If you do not know the weather, one umbrella makes the other more likely. This idea returns on slide~23.
+
+\textbf{i.i.d.\ data.}
+\[
+p(\mathcal{D}\mid\theta)=\prod_{n=1}^{N}p\big(\mathbf{x}^{(n)}\mid\theta\big).
+\]
+\begin{itemize}
+\item i.i.d.\ stands for \textit{independent and identically distributed}.
+\item $\prod_{n=1}^{N}$: multiply together the terms for $n=1,2,\dots,N$.
+\item $p(\mathbf{x}^{(n)}\mid\theta)$: the model's probability for the $n$-th example when the knobs are $\theta$.
+\end{itemize}
+``Identical'' means every example comes from the same distribution with one shared $\theta$. ``Independent'' means the probability of the whole dataset is found by multiplying the probabilities of the individual examples. The equation says: the chance of seeing this whole dataset is the product of the chances of each example.
+
+\textbf{An important subtlety.} The i.i.d.\ assumption is about \textit{different training examples} (different images). It is \textit{not} true of pixels inside one image. A blue pixel in a sky tells you its neighbor is probably blue too. Capturing that dependence inside each example is exactly the job of a generative model, as the slide says.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\subsection*{Slide 11: Likelihood is a function of the parameters}
+\addcontentsline{toc}{subsection}{Slide 11: Likelihood is a function of the parameters}
+
+\textbf{What the slide shows.} Two boxes side by side, then two equations, then one sentence.
+\begin{itemize}
+\item \textbf{Probability box:} $\theta$ fixed, $\mathbf{x}$ varies. $p(\mathbf{x}\mid\theta)$ is a distribution over data.
+\item \textbf{Likelihood box:} $\mathbf{x}$ fixed (the dataset), $\theta$ varies. $L(\theta)=p(\mathcal{D}\mid\theta)$. $L$ is \textit{not} a probability distribution over $\theta$ unless we add a prior.
+\end{itemize}
+
+\textbf{The key idea.} It is the \emph{same formula}, $p(\text{data}\mid\theta)$, read two ways.
+\begin{itemize}
+\item As a \textbf{probability}, the knobs are fixed and we ask what data we might see. Take a coin known to be fair: what flips are likely?
+\item As a \textbf{likelihood}, the data are fixed and we ask which knob settings explain it well. We already saw the flips: which coin bias is most believable?
+\end{itemize}
+Because the likelihood is a function of $\theta$, its values at different $\theta$ do not have to add up to 1. That is why it is not a probability distribution over $\theta$. To turn it into one you need a prior over $\theta$ and Bayes' rule (hand notes).
+
+\textbf{The equations.}
+\[
+L(\theta)=\prod_{n=1}^{N}p\big(\mathbf{x}^{(n)}\mid\theta\big),\qquad
+\ell(\theta)=\log L(\theta)=\sum_{n=1}^{N}\log p\big(\mathbf{x}^{(n)}\mid\theta\big).
+\]
+\begin{itemize}
+\item $L(\theta)$: the likelihood. The first formula is the i.i.d.\ product from slide~10.
+\item $\ell(\theta)$: the \textbf{log-likelihood} (a curly ``l'').
+\item $\log$: the logarithm, which turns multiplication into addition: $\log(ab)=\log a+\log b$.
+\end{itemize}
+The equations say: the log-likelihood is just the likelihood after taking a log, and thanks to $\log(ab)=\log a+\log b$ the product turns into a sum.
+
+\textbf{Why maximize $\ell$ instead of $L$?} The slide gives two reasons.
+\begin{enumerate}
+\item \textit{Products of probabilities underflow.} Multiplying many numbers smaller than 1 gives a tiny result. For instance, 1000 numbers each equal to $0.01$ multiply to $10^{-2000}$, which is smaller than the smallest number a computer stores, so it becomes 0. The sum of the (natural) logs is about $-4605$, which is no problem.
+\item \textit{The log is strictly increasing.} A bigger $L$ always gives a bigger $\log L$, so the $\theta$ that maximizes one maximizes the other.
+\end{enumerate}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\subsection*{Slide 12: Maximum likelihood estimation}
+\addcontentsline{toc}{subsection}{Slide 12: Maximum likelihood estimation}
+
+\textbf{What the slide shows.} A blue MLE box with the main formula, then a ``Why this objective?'' equation, one sentence about entropy, and a red callout titled ``Direction of KL matters.''
+
+\textbf{The MLE formula.}
+\[
+\hat\theta_{\text{ML}}=\arg\max_{\theta}\ \ell(\theta)=\arg\max_{\theta}\sum_{n=1}^{N}\log p\big(\mathbf{x}^{(n)}\mid\theta\big).
+\]
+\begin{itemize}
+\item $\hat\theta_{\text{ML}}$: the maximum-likelihood estimate. The hat means ``our estimate of,'' and ML stands for maximum likelihood.
+\item $\arg\max_\theta f(\theta)$: ``the value of $\theta$ that makes $f$ biggest.'' It returns the best $\theta$, not the best score.
+\end{itemize}
+This says: pick the knob settings that make the data we saw as probable as possible.
+
+\textbf{Why this is the right goal.} The slide states
+\[
+\mathbb{E}_{p_{\text{data}}}\big[\log p_\theta(\mathbf{x})\big]=-H(p_{\text{data}})-\mathrm{KL}\big(p_{\text{data}}\,\|\,p_\theta\big).
+\]
+\begin{itemize}
+\item $\mathbb{E}_{p_{\text{data}}}[\cdots]$: the average of the quantity inside when $\mathbf{x}$ is drawn from the true distribution. In words, how well the model scores on a fresh data point, on average.
+\item $H(p_{\text{data}})$: the \textbf{entropy} of the true distribution, $H(p_{\text{data}})=-\int p_{\text{data}}\log p_{\text{data}}$. It measures how spread out or unpredictable the data are. It depends only on nature, not on $\theta$.
+\item $\mathrm{KL}(p\,\|\,q)=\mathbb{E}_p[\log p(\mathbf{x})-\log q(\mathbf{x})]$: the \textbf{Kullback--Leibler divergence}, a measure of how different $q$ is from $p$. It is never negative, and it equals 0 exactly when $p=q$ (almost everywhere). It is distance-like but not symmetric: swapping $p$ and $q$ changes the answer.
+\end{itemize}
+What the equation says: the model's average score equals a fixed number set by nature, minus how far the model is from reality. Only the second part depends on $\theta$. So making the score as high as possible is the same as making the KL divergence as small as possible. That is the precise meaning of ``choose $\theta$ so that $p_\theta$ is close to $p_{\text{data}}$'' from slide~6. The sum over the dataset in the MLE formula is a stand-in for this average, since we can only average over the examples we actually have. (Getting from the definition of KL to this identity is homework Problem~3.2, so the algebra is left for you.)
+
+\textbf{Direction matters.} $\mathrm{KL}(p_{\text{data}}\|p_\theta)$ is large when the model puts almost no probability where real data live. So a model trained this way tries hard not to miss any cluster of data. This is called \textbf{mode covering}. The reverse, $\mathrm{KL}(p_\theta\|p_{\text{data}})$, is large when the model puts probability where there is no data. It is used by some variational methods and tends to be \textbf{mode seeking}: the model may lock onto one cluster and ignore the rest. Picture data in two separate clumps. A mode-covering model spreads over both clumps. A mode-seeking model may sit on just one (hand notes).
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\subsection*{Slide 13: Worked example: Bernoulli MLE}
+\addcontentsline{toc}{subsection}{Slide 13: Worked example: Bernoulli MLE}
+
+\textbf{What the slide shows.} A fully worked MLE for coin flips, then a green ``Lesson'' box.
+
+\textbf{Setup.} Each flip $x^{(n)}$ is 1 (say, heads) or 0 (tails). The model has one knob: $p(x=1\mid\theta)=\theta$, the chance of heads. Let $N_1$ be the number of heads, $N_0$ the number of tails, and $N=N_1+N_0$.
+
+\textbf{Log-likelihood.}
+\[
+\ell(\theta)=\sum_{n=1}^{N}\Big[x^{(n)}\log\theta+\big(1-x^{(n)}\big)\log(1-\theta)\Big].
+\]
+\begin{itemize}
+\item For a flip with $x^{(n)}=1$, the second term vanishes (it is multiplied by 0), leaving $\log\theta$.
+\item For a flip with $x^{(n)}=0$, the first term vanishes, leaving $\log(1-\theta)$.
+\end{itemize}
+The bracket is a switch: it picks the right log-probability for whichever outcome happened. Adding over all flips and grouping heads and tails gives the hand-notes form
+\[
+\ell(\theta)=N_1\log\theta+N_0\log(1-\theta).
+\]
+
+\textbf{Take the derivative and set it to zero.}
+\[
+\frac{\partial\ell}{\partial\theta}=\frac{N_1}{\theta}-\frac{N_0}{1-\theta}=0
+\quad\Longrightarrow\quad
+\hat\theta=\frac{N_1}{N}.
+\]
+\begin{itemize}
+\item $\partial\ell/\partial\theta$: the slope of $\ell$ as $\theta$ changes. At the top of a hill the slope is zero.
+\end{itemize}
+Step by step: $N_1/\theta=N_0/(1-\theta)$ gives $N_1(1-\theta)=N_0\theta$, so $N_1=(N_0+N_1)\theta=N\theta$, so $\theta=N_1/N$. The second derivative, $-N_1/\theta^2-N_0/(1-\theta)^2$, is negative for every $\theta$ between 0 and 1, which confirms this is a peak and not a valley (hand notes).
+
+\textbf{What it says.} The best coin bias is simply the fraction of flips that came up heads.
+
+\textbf{Lesson.} For this simple model the MLE is the empirical frequency, the thing you would have guessed. For deep generative models the principle is identical, but $\log p_\theta(\mathbf{x})$ has no tidy formula. So we maximize it by gradient descent (walking uphill step by step), or replace it with a bound, or give up on it. That fork is the plot of the rest of the course.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\subsection*{Slide 14: What ``a good density'' buys you}
+\addcontentsline{toc}{subsection}{Slide 14: What ``a good density'' buys you}
+
+\textbf{What the slide shows.} Four bullets: compression, anomaly detection, sampling and imputation, and downstream Bayes.
+
+\textbf{Compression and bits per dimension.}
+\[
+\mathrm{bpd}(\mathbf{x})=\frac{-\log_2 p_\theta(\mathbf{x})}{D}.
+\]
+\begin{itemize}
+\item $-\log_2 p_\theta(\mathbf{x})$: roughly how many \textbf{bits} (0/1 digits) are needed to write down $\mathbf{x}$ using a code built from the model. A rare thing has small probability and so needs a long code. A common thing needs a short one, as in Morse code, where the common letter E is a single dot.
+\item $D$: the number of coordinates in $\mathbf{x}$. The slide says pixels (or channels times pixels). The hand notes say $H\cdot W\cdot 3$ for an RGB image of height $H$ and width $W$.
+\item $\mathrm{bpd}$: bits per dimension, the cost divided by $D$ so images of different sizes can be compared.
+\end{itemize}
+The equation says: the average number of bits the model spends per number in the image. A lower value means better compression, so a better density model. As a yardstick (hand notes), a flat distribution over the 256 values $\{0,\dots,255\}$ costs $\log_2 256=8$ bits per coordinate, and a useful model must do better than that.
+
+\textbf{Anomaly detection.} A very small $p_\theta(\mathbf{x})$ flags an unusual input. The slide warns to use this with care, because in high dimensions likelihoods can rank outliers badly. The hand notes say to treat it as a score, not a proof.
+
+\textbf{Sampling and imputation.} A joint distribution lets you condition on the part you know to fill in the part you do not, such as missing pixels or words.
+
+\textbf{Downstream Bayes.} A class-conditional density $p(\mathbf{x}\mid y)$ plus a prior $p(y)$ gives a classifier through Bayes' rule (slide~18).
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\subsection*{Slide 15: Two ways to factor the joint}
+\addcontentsline{toc}{subsection}{Slide 15: Two ways to factor the joint}
+
+\textbf{What the slide shows.} One equation with two labeled braces, then two boxes.
+\[
+p(\mathbf{x},y)=\underbrace{p(y\mid\mathbf{x})\,p(\mathbf{x})}_{\text{discriminative path}}=\underbrace{p(\mathbf{x}\mid y)\,p(y)}_{\text{generative path}}.
+\]
+This is the product rule from slide~8, now used to define two kinds of models. The hand notes put it as: start from the product rule and stop at different factors.
+
+\textbf{Discriminative model.} It learns $p(y\mid\mathbf{x})$, or a decision score $f(\mathbf{x})$. Examples on the slide: logistic regression, ResNet classifiers, and most BERT fine-tunes for classification. The slide's key point is that the model never defines how images are produced.
+
+\textbf{Generative model.} It learns $p(\mathbf{x})$, or $p(\mathbf{x}\mid y)$ together with $p(y)$, or the full joint $p(\mathbf{x},y)$. Examples on the slide: Naive Bayes, PixelCNN, VAE, diffusion, and language models $p(\text{text})$. It can \textit{simulate} new data.
+
+\textbf{What the symbols stand for.}
+\begin{itemize}
+\item $p(y\mid\mathbf{x})$: the chance of each label given the input. This is what a classifier outputs.
+\item $f(\mathbf{x})$: a decision score, a number computed from $\mathbf{x}$ whose size tells you which class to pick. It need not be a true probability.
+\item $p(\mathbf{x})$: how likely the input itself is. A discriminative model ignores this factor.
+\end{itemize}
+
+\textbf{Plain English.} A discriminative model is like a judge who looks at a picture and says ``cat'' or ``dog.'' The judge may be excellent, but cannot draw a cat. A generative model is like an artist who understands what cats and dogs look like well enough to draw new ones, and can also be used to judge.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\subsection*{Slide 16: Diagram: what each model is allowed to do}
+\addcontentsline{toc}{subsection}{Slide 16: Diagram: what each model is allowed to do}
+
+\textbf{What the slide shows.} Two horizontal chains of nodes.
+\begin{itemize}
+\item \textbf{Discriminative} (top): a blue circle $\mathbf{x}$, then an arrow into a box $p(y\mid\mathbf{x})$, then an arrow into a reddish circle $y$.
+\item \textbf{Generative} (bottom): a reddish circle $y$ with ``prior $p(y)$'' written under it, then an arrow into a box $p(\mathbf{x}\mid y)$, then an arrow into a blue circle $\mathbf{x}$.
+\end{itemize}
+The caption says the arrows are the \textit{sampling} direction. A discriminative model reads $\mathbf{x}$ and emits $y$. A generative model can draw $y$ and then draw $\mathbf{x}$. Unconditional models drop $y$ and just draw $\mathbf{x}\sim p(\mathbf{x})$.
+
+\textbf{Plain English.} Notice that the arrows point in opposite directions. The top chain goes from picture to label, so you can only hand it a picture and get a label. The bottom chain starts from a label (chosen using the prior $p(y)$) and ends at a picture, so it can \textit{manufacture} pictures. The reddish circle is the label and the bluish circle is the image in both rows, so the only thing that changes is the direction of the arrow. If there are no labels at all, the generative chain shrinks to a single step that draws $\mathbf{x}$ directly.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\subsection*{Slide 17: Comparison}
+\addcontentsline{toc}{subsection}{Slide 17: Comparison}
+
+\textbf{What the slide shows.} A table, then a paragraph about Ng and Jordan (2001).
+
+\begin{center}
+\begin{tabular}{p{0.17\textwidth}p{0.27\textwidth}p{0.32\textwidth}}
+\toprule
+ & Discriminative & Generative \\
+\midrule
+Object & $p(y\mid\mathbf{x})$ or $f(\mathbf{x})$ & $p(\mathbf{x})$ or $p(\mathbf{x},y)$ \\ \addlinespace
+Typical loss & cross-entropy on labels & log-likelihood, ELBO, adversarial, score \\ \addlinespace
+Can sample $\mathbf{x}$? & No & Yes (quality varies) \\ \addlinespace
+Missing data & Hard & Condition the joint \\ \addlinespace
+Data efficiency & Often better for pure prediction & Needs to explain all of $\mathbf{x}$ \\ \addlinespace
+Failure mode & Overconfident OOD predictions & Mode collapse, blur, high cost \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\textbf{Reading the rows.}
+\begin{itemize}
+\item \textit{Object:} what is being learned (slide~15).
+\item \textit{Typical loss:} the training score. Cross-entropy on labels measures how well predicted labels match true labels. The generative list names log-likelihood (slides 11--12), the ELBO (a computable lower bound on log-likelihood, Week~3), an adversarial loss (GANs, Week~4), and a score-based loss (used with diffusion, later weeks).
+\item \textit{Missing data:} a generative model that holds the joint can fill in gaps by conditioning. A pure classifier needs a separate model for that (hand notes).
+\item \textit{Data efficiency:} a discriminative model only has to explain the label. A generative model has to explain \textit{all} of $\mathbf{x}$, which is a harder job.
+\item \textit{Failure mode:} OOD means out-of-distribution, inputs unlike the training data. A classifier can be confidently wrong on such inputs. Generative models can suffer mode collapse (producing only a few kinds of output), blurry samples, or high computational cost.
+\end{itemize}
+
+\textbf{Ng and Jordan (2001).} As the number of training examples $N$ grows without limit ($N\to\infty$), discriminative classifiers can reach a lower prediction error. A generative classifier often reaches its own (possibly higher) final error level with fewer labeled examples, because it also uses the structure of $p(\mathbf{x}\mid y)$ (hand notes). In plain words: with little labeled data the generative approach may get decent sooner, while with lots of data the discriminative approach tends to win at pure classification.
+
+\textbf{Takeaway.} The slide ends by saying to use a generative model when you need samples, a density, or a representation, not only a label. The hand notes sharpen this: for this course the reason to be generative is \textit{not} a small-label classifier. It is samples, density, and representation.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\subsection*{Slide 18: Generative models that still classify}
+\addcontentsline{toc}{subsection}{Slide 18: Generative models that still classify}
+
+\textbf{What the slide shows.} One equation, a teal box on Gaussian discriminant analysis, and two bullets.
+
+\textbf{Classify using Bayes.}
+\[
+\hat y=\arg\max_{y}\ p(\mathbf{x}\mid y)\,p(y).
+\]
+\begin{itemize}
+\item $\hat y$: the predicted label.
+\item $\arg\max_y$: the label $y$ that makes the expression after it biggest.
+\item $p(\mathbf{x}\mid y)\,p(y)$: likelihood times prior, the top of Bayes' rule on slide~9.
+\end{itemize}
+This says: for a new image, compute a score for every label and pick the label with the biggest score. The denominator $p(\mathbf{x})$ of Bayes' rule is the same for every label, so it cannot change which label wins and can be dropped.
+
+\textbf{Gaussian discriminant analysis.}
+\[
+p(y)=\pi_y,\qquad p(\mathbf{x}\mid y)=\mathcal{N}(\mathbf{x};\boldsymbol{\mu}_y,\boldsymbol{\Sigma}_y).
+\]
+\begin{itemize}
+\item $\pi_y$: the prior probability of class $y$, that is, how common the class is.
+\item $\mathcal{N}(\mathbf{x};\boldsymbol{\mu},\boldsymbol{\Sigma})$: the Gaussian (bell-curve) density evaluated at $\mathbf{x}$.
+\item $\boldsymbol{\mu}_y$: the center of class $y$'s bell.
+\item $\boldsymbol{\Sigma}_y$: the covariance matrix, which describes how spread out the bell is and which directions it stretches in.
+\end{itemize}
+This says: each class is modeled as its own bell-shaped cloud of points, and each class has a prior probability.
+
+\textbf{Which boundary you get.} If all classes share one covariance, the dividing line between two classes is straight, and the method is called \textbf{LDA} (linear discriminant analysis). If each class has its own covariance, the boundary is curved, and the method is \textbf{QDA} (quadratic discriminant analysis). (The reason, a standard fact, is that the squared terms cancel out when the covariances are equal.)
+
+\textbf{Why this is on a generative-models slide.} The slide calls this the classical template that deep models generalize. You can (1) replace the Gaussian with a neural density such as an autoregressive network, a flow, or diffusion, and (2) replace the discrete label $y$ with a continuous latent $\mathbf{z}$. The second step leads straight into the next slides.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\subsection*{Slide 19: Why introduce variables we never observe?}
+\addcontentsline{toc}{subsection}{Slide 19: Why introduce variables we never observe?}
+
+\textbf{What the slide shows.} A definition box and three reasons.
+
+\textbf{Latent variable.} A latent (hidden) variable $\mathbf{z}$ is part of the model but is not in the dataset. It is a compressed \textit{cause} of $\mathbf{x}$. The slide's examples are digit identity, pose, object color, and a topic in a document.
+
+\textbf{The three reasons, in plain English.}
+\begin{enumerate}
+\item \textit{The marginal $p(\mathbf{x})$ is complicated, but $p(\mathbf{x}\mid\mathbf{z})$ is simple.} The overall pattern of the data can be messy, but once you know the hidden cause, what is left is easy to describe, for example one bell curve or a decoder network. As an analogy, the heights of all people in a room form a lumpy shape, but the heights within one group (say, one age group) look like a single clean bell.
+\item \textit{$\mathbf{z}$ is a usable representation.} The hidden code can be used for editing, clustering, or other tasks.
+\item \textit{Dependencies are explained by a shared cause.} Pixels in an image depend on each other, but given $\mathbf{z}$ they may be independent. This is developed on slide~23.
+\end{enumerate}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\subsection*{Slide 20: The generative story}
+\addcontentsline{toc}{subsection}{Slide 20: The generative story}
+
+\textbf{What the slide shows.} A small diagram, a two-step sampling recipe, and the marginal likelihood formula. In the diagram, a box ``parameters $\theta$'' has an arrow pointing into a reddish circle $\mathbf{z}$, with ``prior $p_\theta(\mathbf{z})$'' written under it. From $\mathbf{z}$, an arrow labeled $p_\theta(\mathbf{x}\mid\mathbf{z})$ points to a bluish circle $\mathbf{x}$.
+
+\textbf{Sampling (``ancestral,'' along the arrows).}
+\begin{enumerate}
+\item Draw $\mathbf{z}\sim p_\theta(\mathbf{z})$. The slide's gloss: ``choose the hidden cause.''
+\item Draw $\mathbf{x}\sim p_\theta(\mathbf{x}\mid\mathbf{z})$. The gloss: ``render the observation.''
+\end{enumerate}
+\textit{Ancestral sampling} just means following the arrows: draw the ``parents'' first, then draw each ``child'' given its parents.
+
+\textbf{Learning never sees $\mathbf{z}$.} Because $\mathbf{z}$ is not in the dataset, we cannot train on it directly. We maximize the \textbf{marginal likelihood} instead:
+\[
+p_\theta(\mathbf{x})=\int p_\theta(\mathbf{x}\mid\mathbf{z})\,p_\theta(\mathbf{z})\,d\mathbf{z}
+\qquad\text{or}\qquad
+\sum_{\mathbf{z}}p_\theta(\mathbf{x}\mid\mathbf{z})\,p_\theta(\mathbf{z}).
+\]
+\begin{itemize}
+\item $p_\theta(\mathbf{z})$: the prior, how likely each hidden cause is.
+\item $p_\theta(\mathbf{x}\mid\mathbf{z})$: how likely the observation is, given that cause.
+\item $\int\cdots d\mathbf{z}$ (continuous $\mathbf{z}$) or $\sum_{\mathbf{z}}$ (discrete $\mathbf{z}$): add over every possible hidden cause.
+\end{itemize}
+What the equation says: we do not know which hidden cause produced $\mathbf{x}$, so we try every cause. For each one we multiply ``how likely is this cause'' by ``how likely is this $\mathbf{x}$ under that cause,'' and then add everything up. This is just the sum rule and product rule from slide~8 applied with $\mathbf{z}$ in place of $y$.
+
+\textit{Hand notes warning.} Do not write $p(\mathbf{x})=\int p(\mathbf{x}\mid\mathbf{z})\,d\mathbf{z}$ and forget the prior $p(\mathbf{z})$. That is one of the listed point-losing mistakes.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\subsection*{Slide 21: Marginal likelihood, posterior, and the hard integral}
+\addcontentsline{toc}{subsection}{Slide 21: Marginal likelihood, posterior, and the hard integral}
+
+\textbf{What the slide shows.} Three bullets, then a red ``Intractability'' callout with three weekly pointers.
+
+\textbf{Three distributions, one model.}
+\[
+p_\theta(\mathbf{x},\mathbf{z})=p_\theta(\mathbf{x}\mid\mathbf{z})\,p_\theta(\mathbf{z}),\qquad
+p_\theta(\mathbf{x})=\int p_\theta(\mathbf{x},\mathbf{z})\,d\mathbf{z},\qquad
+p_\theta(\mathbf{z}\mid\mathbf{x})=\frac{p_\theta(\mathbf{x},\mathbf{z})}{p_\theta(\mathbf{x})}.
+\]
+\begin{itemize}
+\item \textbf{Joint} $p_\theta(\mathbf{x},\mathbf{z})$: the chance of a particular cause \textit{and} a particular observation together.
+\item \textbf{Marginal likelihood} (also called the evidence) $p_\theta(\mathbf{x})$: the chance of the observation with the cause added away.
+\item \textbf{Posterior} $p_\theta(\mathbf{z}\mid\mathbf{x})$: given that we saw $\mathbf{x}$, how likely each cause is. The hand notes call it the distribution over explanations of a particular $\mathbf{x}$.
+\end{itemize}
+
+\textbf{Intractability.} If $\mathbf{z}$ is continuous and $p(\mathbf{x}\mid\mathbf{z})$ is a neural network, the integral that defines $p(\mathbf{x})$ has no closed form, meaning there is no formula that gives the answer. The posterior is hard for the same reason. Look at the posterior formula: the top, $p_\theta(\mathbf{x},\mathbf{z})$, is easy (just multiply the prior by the decoder). The bottom, $p_\theta(\mathbf{x})$, is the hard integral.
+
+\textbf{``This single fact splits the rest of the course.''} Each response is a different way around the hard integral:
+
+\begin{center}
+\begin{tabular}{p{0.58\textwidth}p{0.28\textwidth}}
+\toprule
+Response & Where \\
+\midrule
+Avoid latents. Factor $p(\mathbf{x})$ with the chain rule so every term is an explicit conditional (exact likelihood). & Week 2, autoregressive models \\ \addlinespace
+Keep latents, and optimize the ELBO instead of $\log p(\mathbf{x})$. & Week 3, VAEs \\ \addlinespace
+Make the map from noise to $\mathbf{x}$ invertible, so the density is a base density times a Jacobian factor (the slide says the integral becomes a determinant). & Week 8, flows \\ \addlinespace
+Define a sampler and do not compute $p(\mathbf{x})$ (hand notes only; not on this slide). & Week 4, GANs \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+ELBO stands for evidence lower bound: a number we \textit{can} compute that is guaranteed to be at most $\log p(\mathbf{x})$, so pushing it up pushes the real thing up too. Details come in Week 3.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\subsection*{Slide 22: Plate notation}
+\addcontentsline{toc}{subsection}{Slide 22: Plate notation}
+
+\textbf{What the slide shows.} A diagram, three bullets, and an equation. In the diagram a dashed rounded rectangle (the \textbf{plate}) contains a reddish circle $\mathbf{z}_n$ above a bluish circle $\mathbf{x}_n$, with an arrow from $\mathbf{z}_n$ down to $\mathbf{x}_n$. A letter $N$ sits at the lower right of the rectangle. Outside the rectangle, to the right, is a small square labeled $\theta$ with two arrows going in, one to $\mathbf{z}_n$ and one to $\mathbf{x}_n$.
+
+\textbf{Reading the diagram.}
+\begin{itemize}
+\item The slide says a shaded node is observed and an open node is latent. In the actual picture both circles carry a light tint (warm for $\mathbf{z}_n$, cool for $\mathbf{x}_n$), so the rule is told to you in words more than shown by shading. Just remember: $\mathbf{x}$ is observed, $\mathbf{z}$ is hidden.
+\item The plate means ``repeat everything inside for $n=1,\dots,N$.'' So the diagram stands for $N$ copies of the pair $(\mathbf{z}_n,\mathbf{x}_n)$, one per data point.
+\item $\theta$ sits \textit{outside} the plate, because there is one model whose knobs are shared by every data point.
+\end{itemize}
+Each $\mathbf{z}_n$ explains only its own $\mathbf{x}_n$. Given $\theta$, the data points are independent, which restores the product form of the likelihood:
+\[
+p(\mathcal{D}\mid\theta)=\prod_{n=1}^{N}\int p(\mathbf{x}_n\mid\mathbf{z}_n,\theta)\,p(\mathbf{z}_n\mid\theta)\,d\mathbf{z}_n.
+\]
+\begin{itemize}
+\item $\prod_{n=1}^{N}$: multiply over all $N$ data points (the i.i.d.\ product from slide~10).
+\item $\int\cdots d\mathbf{z}_n$: for each data point, add over all its possible hidden causes (the marginal likelihood from slide~20).
+\item $p(\mathbf{x}_n\mid\mathbf{z}_n,\theta)$ and $p(\mathbf{z}_n\mid\theta)$: the decoder and the prior, now written with $\theta$ shown explicitly.
+\end{itemize}
+What the equation says: the chance of the whole dataset is the product, over data points, of each point's marginal likelihood with its own hidden cause summed out.
+
+\textbf{Notation warning.} On this slide the data point index is written as a subscript ($\mathbf{x}_n$). Elsewhere in the lecture, in the hand notes, and in the homework, it is a superscript $\mathbf{x}^{(n)}$. They mean the same thing. The hand notes say not to swap the two conventions in your own derivations, so use the superscript form.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\subsection*{Slide 23: Conditional independence given the latent}
+\addcontentsline{toc}{subsection}{Slide 23: Conditional independence given the latent}
+
+\textbf{What the slide shows.} A diagram and a formula. At the top is a reddish circle $\mathbf{z}$. Three arrows run down from it to bluish circles $x_1$, $x_2$, and $x_D$, with ``$\cdots$'' between $x_2$ and $x_D$ to show there are $D$ of them in total.
+
+\textbf{The assumption.}
+\[
+p(\mathbf{x}\mid\mathbf{z})=\prod_{d=1}^{D}p(x_d\mid\mathbf{z}).
+\]
+\begin{itemize}
+\item $x_d$: the $d$-th coordinate of $\mathbf{x}$ (for example, the $d$-th pixel).
+\item $D$: how many coordinates there are.
+\item $\prod_{d=1}^{D}$: multiply over all coordinates.
+\end{itemize}
+This says: once you know the hidden cause $\mathbf{z}$, the coordinates of $\mathbf{x}$ no longer influence each other, so the chance of the whole $\mathbf{x}$ is the product of the chances of each coordinate. That is the conditional independence from slide~10, with $\mathbf{z}$ playing the role of ``what is known.''
+
+\textbf{Unconditionally they still depend on each other.} The slide stresses that $x_1$ and $x_2$ are dependent \textit{through} $\mathbf{z}$. Integrating (or summing) $\mathbf{z}$ out destroys the product.
+
+\textbf{A numeric illustration.} Let $z$ be the weather: rain or sun, each with probability $0.5$. Let $x_1$ and $x_2$ say whether two different people carry umbrellas. Given rain, each carries one with probability $0.9$, independently. Given sun, each carries one with probability $0.1$, independently. Then $p(x_1=1)=0.5\cdot0.9+0.5\cdot0.1=0.5$, and likewise $p(x_2=1)=0.5$, so $p(x_1=1)\,p(x_2=1)=0.25$. But the chance both carry umbrellas is $0.5\cdot0.9^2+0.5\cdot0.1^2=0.405+0.005=0.41$. Since $0.41\neq0.25$, the two are \textit{not} independent, even though they are independent once the weather is known. Seeing one umbrella makes rain more likely, and that makes the other umbrella more likely.
+
+\textbf{Why it matters.} This is how a low-dimensional hidden cause creates a high-dimensional, correlated observation. The slide lists mixtures, factor analysis, VAEs, and many diffusion conditioners as using a version of this idea. The hand notes warn against the logical slip of concluding $x_1\perp x_2$ from $x_1\perp x_2\mid z$.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\subsection*{Slide 24: Running example: a Gaussian mixture}
+\addcontentsline{toc}{subsection}{Slide 24: Running example: a Gaussian mixture}
+
+\textbf{What the slide shows.} Formulas, four bullets, and a small plot. The plot has a horizontal axis labeled $x$ and two bell-shaped bumps. The left bump is teal and labeled $k=1$. The right bump is orange and labeled $k=2$. The two bumps are separate and only just touch at their feet. The caption says: ``Two components. The marginal is the sum of the curves, not a single Gaussian.'' Note that the plot draws only the two component curves, not their sum.
+
+\textbf{The model.} A discrete latent $z\in\{1,\dots,K\}$ says which cluster, and the observation $\mathbf{x}\in\mathbb{R}^d$ is continuous.
+\[
+p(z=k)=\pi_k,\qquad p(\mathbf{x}\mid z=k)=\mathcal{N}(\mathbf{x};\boldsymbol{\mu}_k,\boldsymbol{\Sigma}_k).
+\]
+\[
+p(\mathbf{x})=\sum_{k=1}^{K}\pi_k\,\mathcal{N}(\mathbf{x};\boldsymbol{\mu}_k,\boldsymbol{\Sigma}_k).
+\]
+\begin{itemize}
+\item $K$: the number of clusters (components).
+\item $\pi_k$: the probability of picking cluster $k$. These are the \textbf{mixing weights}, with $\pi_k\ge0$ and $\sum_k\pi_k=1$.
+\item $\boldsymbol{\mu}_k$: the center of cluster $k$.
+\item $\boldsymbol{\Sigma}_k$: the spread and shape of cluster $k$.
+\item $\mathbb{R}^d$: lists of $d$ real numbers. (This slide uses lowercase $d$; slide~23 used $D$.)
+\end{itemize}
+\textbf{What it says.} To generate a point: first pick a cluster $k$ with probability $\pi_k$, then draw the point from that cluster's bell curve. The overall density of $\mathbf{x}$ is a \textit{weighted sum} of the $K$ bell curves, because $\mathbf{x}$ could have come from any cluster. The sum is easy to compute because $K$ is small. That makes this model a rare case where the marginal likelihood from slide~20 is tractable.
+
+The four bullets map onto the Bayes names: the prior is the categorical weights $\boldsymbol\pi$, the likelihood is one Gaussian per component, the marginal is the weighted sum, and the posterior is the responsibility.
+
+\textbf{Responsibility.}
+\[
+r_k(\mathbf{x})=p(z=k\mid\mathbf{x})=\frac{\pi_k\,\mathcal{N}_k(\mathbf{x})}{\sum_{j}\pi_j\,\mathcal{N}_j(\mathbf{x})}.
+\]
+\begin{itemize}
+\item $r_k(\mathbf{x})$: the \textbf{responsibility} of cluster $k$ for the point $\mathbf{x}$, meaning the posterior probability that $\mathbf{x}$ came from cluster $k$.
+\item $\mathcal{N}_k(\mathbf{x})$: shorthand for $\mathcal{N}(\mathbf{x};\boldsymbol{\mu}_k,\boldsymbol{\Sigma}_k)$.
+\item $\sum_j$: add over all clusters, using $j$ as the counter so it is not confused with the specific $k$ on top.
+\end{itemize}
+This is Bayes' rule (slide~9) with the cluster label as the unknown. The top is prior times likelihood for cluster $k$, and the bottom adds that quantity over all clusters, which is the evidence. The result is a number between 0 and 1 for each cluster, and the numbers over all clusters add to 1. It is a \textit{soft} assignment: a point between two clusters can be, say, mostly cluster 1 and partly cluster 2.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\subsection*{Slide 25: Why EM appears (preview)}
+\addcontentsline{toc}{subsection}{Slide 25: Why EM appears (preview)}
+
+\textbf{What the slide shows.} The mixture log-likelihood, a blue ``Expectation--Maximization'' box, and a closing paragraph.
+
+\textbf{The difficulty.}
+\[
+\ell(\theta)=\sum_{n=1}^{N}\log\sum_{k=1}^{K}\pi_k\,\mathcal{N}\big(\mathbf{x}^{(n)};\boldsymbol{\mu}_k,\boldsymbol{\Sigma}_k\big).
+\]
+This is the log-likelihood from slide~11 with the mixture density from slide~24 plugged in. The trouble is that it has a \textit{log of a sum}. The log cannot pass through a sum: $\log(a+b)$ is not $\log a+\log b$. So the parameters stay tangled together, and setting derivatives to zero does not give a simple linear system with a neat answer. The hand notes list the mix-up as a mistake: $\log\sum_k\pi_k\mathcal{N}_k$ is \textit{not} $\sum_k\log(\pi_k\mathcal{N}_k)$.
+
+\textbf{Expectation--Maximization (EM).} It repeats two steps.
+\begin{itemize}
+\item \textbf{E-step.} Freeze $\theta$ and compute the responsibilities $r_k(\mathbf{x}^{(n)})$ for every point and cluster, a soft assignment of each point to the clusters.
+\item \textbf{M-step.} Freeze those responsibilities and update $\pi_k$, $\boldsymbol{\mu}_k$, $\boldsymbol{\Sigma}_k$ in closed form, as if the assignments had been observed.
+\end{itemize}
+\textbf{Plain English.} It is a chicken-and-egg problem. If you knew which cluster each point belonged to, finding the cluster centers would be easy. If you knew the centers, finding which cluster each point belongs to would be easy. EM alternates: guess the assignments (softly), then re-fit the clusters to those guesses, and repeat.
+
+The slide says EM maximizes the marginal likelihood by repeatedly lower-bounding it. The hand notes add that each EM iteration does not decrease the marginal likelihood. The VAE (Week~3) is the same idea with two changes. A neural \textit{recognition network} plays the role of the E-step, and an ordinary gradient step plays the role of the M-step. The bound itself is derived in Week~3.
+
+\textit{Exam guidance from the hand notes.} Do not memorize the EM update formulas beyond the responsibility and the statement of the two steps, unless a problem asks you to derive a specific M-step.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\subsection*{Slide 26: Complete data vs.\ incomplete data}
+\addcontentsline{toc}{subsection}{Slide 26: Complete data vs.\ incomplete data}
+
+\textbf{What the slide shows.} Two boxes side by side. The left (teal) is titled Complete. The right (red) is titled Incomplete.
+
+\textbf{Complete data.} If we observed both $\mathbf{x}$ and $\mathbf{z}$, the objective would be
+\[
+\log p(\mathbf{x},\mathbf{z}\mid\theta)=\log p(\mathbf{x}\mid\mathbf{z},\theta)+\log p(\mathbf{z}\mid\theta).
+\]
+This follows from the product rule, $p(\mathbf{x},\mathbf{z})=p(\mathbf{x}\mid\mathbf{z})\,p(\mathbf{z})$, followed by $\log(ab)=\log a+\log b$. There is no integral and no log of a sum, so it is usually easy to maximize. For a Gaussian mixture it reduces to weighted averages.
+
+\textbf{Incomplete data (the real situation).} We observe only $\mathbf{x}$, so the correct objective is
+\[
+\log p(\mathbf{x}\mid\theta)=\log\int p(\mathbf{x},\mathbf{z}\mid\theta)\,d\mathbf{z}.
+\]
+Now the log sits outside an integral over hidden causes, the same difficulty as the log of a sum on slide~25.
+
+\textbf{Jensen's inequality.} The slide says this produces a \textbf{variational lower bound}, ``because log is concave'':
+\[
+\log\mathbb{E}[q]\ \ge\ \mathbb{E}[\log q].
+\]
+\begin{itemize}
+\item $q$: here, any positive random quantity. (The letter $q$ is reused later for distributions, for example in $\mathrm{KL}(p\|q)$ on slide~31.)
+\item $\mathbb{E}[\cdot]$: the average.
+\item \textit{Concave} means the curve bends downward like a hill, so a straight line between two points on it lies below the curve.
+\end{itemize}
+What it says: ``average first, then take the log'' is at least as big as ``take the log first, then average.'' A tiny example with $\log_2$: let $q$ be 1 or 4, each half the time. Then $\mathbb{E}[q]=2.5$ and $\log_2 2.5\approx1.32$, while $\mathbb{E}[\log_2 q]=(0+2)/2=1$. Indeed $1.32\ge1$.
+
+The practical payoff is that the right-hand side moves the log \textit{inside} the average, where it can act on the easy pieces, and it is guaranteed to sit below the true value. That gives a computable lower bound to push upward. The phrase ``in the right measure'' means the average has to be taken under a suitable distribution over $\mathbf{z}$. Which one is the content of the VAE lecture. The hand notes stress that the bound exists because the latent is missing, not because of any particular neural architecture.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\subsection*{Slide 27: A taxonomy you will reuse all semester}
+\addcontentsline{toc}{subsection}{Slide 27: A taxonomy you will reuse all semester}
+
+\textbf{What the slide shows.} A table of six model families, with the course week in which each is taught, and two definitions underneath.
+
+\begin{center}
+\begin{tabular}{p{0.26\textwidth}p{0.2\textwidth}p{0.19\textwidth}p{0.23\textwidth}}
+\toprule
+Family & Density $p(\mathbf{x})$ & Sampling & Latent $\mathbf{z}$ \\
+\midrule
+Autoregressive (W2, W9) & exact, via chain rule & sequential, exact & none required \\ \addlinespace
+Variational autoencoder (W3) & ELBO only & ancestral, one shot & explicit, continuous \\ \addlinespace
+GAN (W4) & implicit, not computed & one forward pass & noise input \\ \addlinespace
+Diffusion (W5--6) & ELBO or score & iterative denoising & noise trajectory \\ \addlinespace
+Energy-based (W7) & unnormalized $\tilde p$ & MCMC, costly & none or hidden units \\ \addlinespace
+Normalizing flow (W8) & exact, via Jacobian & one invertible pass & the base noise \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\textbf{Reading the columns.}
+\begin{itemize}
+\item \textit{Density:} can the model give a number $p(\mathbf{x})$ for a given $\mathbf{x}$? Autoregressive models and flows can do it exactly. A VAE only gives a lower bound (the ELBO). Diffusion gives a bound or a score. GANs do not compute one at all.
+\item \textit{Sampling:} how a new $\mathbf{x}$ is produced. Autoregressive models build $\mathbf{x}$ one piece at a time. A VAE draws $\mathbf{z}$ and decodes in one go. A GAN needs one forward pass through the generator. Diffusion removes noise step by step. Energy-based models use MCMC (a slow, step-by-step random-walk style sampler, described on the slide only as ``costly''). A flow uses one invertible map.
+\item \textit{Latent:} whether there is a hidden $\mathbf{z}$. Autoregressive models do not require one. A VAE has an explicit continuous code. For GANs, flows, and diffusion, the ``latent'' is the noise that goes in.
+\end{itemize}
+
+\textbf{Two definitions.} The slide says \textit{implicit} means the model defines a sampler $G(\mathbf{z})$ but not a number $p(\mathbf{x})$. It says \textit{unnormalized} means we know
+\[
+\tilde p(\mathbf{x})=e^{-E(\mathbf{x})}\quad\text{only up to a constant}\quad Z=\int\tilde p.
+\]
+\begin{itemize}
+\item $E(\mathbf{x})$: an ``energy'' score. Low energy means likely.
+\item $\tilde p(\mathbf{x})$: an unnormalized plausibility. It ranks points correctly but does not add up to 1.
+\item $Z=\int\tilde p(\mathbf{x})\,d\mathbf{x}$: the total, called the partition function. It is the area under $\tilde p$.
+\end{itemize}
+What it says: to get a real probability you would divide by $Z$, as in $p=\tilde p/Z$ (hand notes). But computing $Z$ means integrating over every possible $\mathbf{x}$, which is usually infeasible, so $p$ itself is unavailable.
+
+\textit{Hand notes.} Their version of the table words a few cells differently: flows are ``exact, change of variables,'' energy-based models are ``known up to $1/Z$,'' and the latent for energy-based models is ``optional.'' It is the same content.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\subsection*{Slide 28: How the families relate}
+\addcontentsline{toc}{subsection}{Slide 28: How the families relate}
+
+\textbf{What the slide shows.} A tree diagram.
+\begin{itemize}
+\item The root, at the top, is a tan box: ``Probabilistic generative model $p_\theta(\mathbf{x})$.''
+\item Three arrows lead to three blue boxes in the middle: ``Tractable likelihood,'' ``Bound or score,'' and ``Implicit sampler.''
+\item Under ``Tractable likelihood'' are two boxes: AR (examples PixelCNN, GPT) and Flow (examples RealNVP, Glow).
+\item Under ``Bound or score'' are two boxes: VAE and Diffusion.
+\item Under ``Implicit sampler'' is one box: GAN.
+\end{itemize}
+In the rendered slide the bottom row of boxes overlaps, so parts of the AR and Flow labels are hidden behind their neighbors. The example names above are taken from the slide's text layer. Energy-based models are in the table on slide~27 but are not drawn in this tree.
+
+\textbf{What it says.} The families are grouped by the \textit{training signal}: what you are able to compute and optimize. Some can compute the likelihood exactly. Some can only compute a bound or a score. Some define only a sampler and compute no density. The grouping is \textbf{not} about image quality.
+
+The caption adds a warning: a model can move between boxes. For example, a VAE with an autoregressive decoder has both a latent and a chain-rule likelihood term. So the tree is a rough map, not a set of walls.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\subsection*{Slide 29: What we will \textit{not} treat as the same thing}
+\addcontentsline{toc}{subsection}{Slide 29: What we will \textit{not} treat as the same thing}
+
+\textbf{What the slide shows.} Four bullets, each of the form ``A $\neq$ B.''
+\begin{enumerate}
+\item \textbf{Autoencoder $\neq$ generative model.} A vanilla autoencoder maps $\mathbf{x}\to\mathbf{z}\to\hat{\mathbf{x}}$. It squeezes the input to a code and rebuilds it. But it does not define a prior $p(\mathbf{z})$ or a valid density, so there is no principled way to draw new data from it. A \textit{variational} autoencoder adds both.
+\item \textbf{Discriminator $\neq$ classifier of real data only.} In a GAN, the discriminator is trained adversarially against a moving generator. Its job keeps changing as the generator improves.
+\item \textbf{Sampling $\neq$ ``add Gaussian noise to a training image.''} A sample is a draw from the model distribution. The hand notes call noising a training image data augmentation, not sampling from $p_\theta$.
+\item \textbf{Likelihood $\neq$ perceptual quality.} A model can have high likelihood and blurry samples (many VAEs), or sharp samples and no likelihood (GANs). Scoring well on one says little about the other.
+\end{enumerate}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\subsection*{Slide 30: Directed graphical model, in one slide}
+\addcontentsline{toc}{subsection}{Slide 30: Directed graphical model, in one slide}
+
+\textbf{What the slide shows.} A definition, a formula, and two diagrams.
+\begin{itemize}
+\item \textbf{Left diagram (latent-variable joint):} a reddish circle $z$ with three arrows down to $x_1$, $x_2$, $x_3$. Label: $p(z)\prod_d p(x_d\mid z)$.
+\item \textbf{Right diagram (fully autoregressive joint):} three circles in a row, $x_1\to x_2\to x_3$, plus a curved arrow jumping from $x_1$ directly to $x_3$. Label: $p(x_1)\,p(x_2\mid x_1)\,p(x_3\mid x_1,x_2)$.
+\end{itemize}
+
+\textbf{The general rule.} A directed graphical model (a Bayesian network) is a DAG, a \textit{directed acyclic graph}: dots joined by arrows, with no loops. Each node $v$ has a distribution that depends only on its parents. The joint is
+\[
+p(\mathbf{v})=\prod_{v}p\big(v\mid\mathrm{pa}(v)\big).
+\]
+\begin{itemize}
+\item $\mathbf{v}$: all the variables in the graph together.
+\item $\mathrm{pa}(v)$: the parents of node $v$, the nodes with an arrow pointing into $v$.
+\item $\prod_v$: multiply over every node.
+\end{itemize}
+What it says: to get the joint probability, multiply one factor per node, where each factor is ``the chance of this node given its parents.'' A node with no parents just contributes its own plain probability.
+
+\textbf{Applying it to the two graphs.}
+\begin{itemize}
+\item \textit{Left:} $z$ has no parents, so it contributes $p(z)$. Each $x_d$ has the single parent $z$, so it contributes $p(x_d\mid z)$. The product is $p(z)\prod_d p(x_d\mid z)$.
+\item \textit{Right:} $x_1$ has no parents, giving $p(x_1)$. $x_2$ has parent $x_1$, giving $p(x_2\mid x_1)$. $x_3$ has parents $x_1$ and $x_2$ (that is what the curved arrow adds), giving $p(x_3\mid x_1,x_2)$.
+\end{itemize}
+
+\textbf{Why this matters.} The slide says Week~2 builds the right-hand model with neural networks. There is no latent, and the likelihood is just a product of explicit conditionals, so it is exact. The left-hand model is easy to sample from but needs an integral over $z$ to get $p(\mathbf{x})$. Both graphs define a legal joint. They simply make different quantities easy (hand notes).
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\clearpage
+\subsection*{Slide 31: Notation cheat sheet}
+\addcontentsline{toc}{subsection}{Slide 31: Notation cheat sheet}
+
+\textbf{What the slide shows.} A two-column table. Here it is with a plain-English column added.
+
+\begin{center}
+\begin{tabular}{p{0.3\textwidth}p{0.24\textwidth}p{0.32\textwidth}}
+\toprule
+Symbol & Slide's meaning & Plain English \\
+\midrule
+$\mathbf{x}\in\mathbb{R}^D$ or $\{0,\dots,255\}^D$ & one observation (image, sequence, \dots) & a list of $D$ numbers: real numbers, or whole numbers from 0 to 255 such as pixel values \\ \addlinespace
+$\mathcal{D}=\{\mathbf{x}^{(n)}\}_{n=1}^{N}$ & training set; superscript $(n)$ indexes points & the collection of all $N$ examples we train on \\ \addlinespace
+$y$ & observed label, when we have one & the tag, such as cat or dog \\ \addlinespace
+$\mathbf{z}$ & latent variable, never in $\mathcal{D}$ & the hidden cause; never in the data \\ \addlinespace
+$\theta$ & all trainable parameters & every knob the model can turn during training \\ \addlinespace
+$p_{\text{data}}$ & unknown process that produced $\mathcal{D}$ & nature's recipe, which we cannot see \\ \addlinespace
+$p_\theta(\mathbf{x})$ & model density or mass function & our model's probability for $\mathbf{x}$ \\ \addlinespace
+$p_\theta(\mathbf{x},\mathbf{z})$ & joint of observation and latent & chance of cause and observation together \\ \addlinespace
+$\ell(\theta)=\sum_n\log p_\theta(\mathbf{x}^{(n)})$ & log-likelihood & the score we maximize in training \\ \addlinespace
+$\mathrm{KL}(p\|q)=\mathbb{E}_p[\log p-\log q]$ & Kullback--Leibler divergence & how far $q$ is from $p$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\textbf{Two things to watch.}
+\begin{itemize}
+\item The letter $D$ is used twice. The script $\mathcal{D}$ is the dataset, and the plain $D$ in $\mathbb{R}^D$ is the number of coordinates in one observation. The hand notes list them side by side as ``$\mathbf{x},\mathcal{D},N,D$.''
+\item The hand notes add one more symbol, $r_k(\mathbf{x})$: the posterior probability that mixture component $k$ explains $\mathbf{x}$ (slide~24). They also repeat the rule: superscript $(n)$ indexes data points, and subscripts index coordinates or mixture components. Do not swap them in derivations.
+\end{itemize}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\subsection*{Slide 32: Mini-quiz (think, then check)}
+\addcontentsline{toc}{subsection}{Slide 32: Mini-quiz (think, then check)}
+
+\textbf{What the slide shows.} Five numbered questions, followed by answers at the bottom. Each question and answer is explained below.
+
+\textbf{1. ``A density value $p(\mathbf{x})=4.2$ is illegal. True or false?''} False. A density is a height, not a probability, and heights can exceed 1 as long as the total area is 1 (slide~7). What \textit{cannot} exceed 1 is the probability of a region.
+
+\textbf{2. ``You maximize $p(\theta\mid\mathcal{D})$ and call it maximum likelihood. What did you forget?''} The likelihood is $p(\mathcal{D}\mid\theta)$, with the data on the left of the bar and the parameters on the right. $p(\theta\mid\mathcal{D})$ is the \textit{posterior} over the parameters, and getting it requires a prior on $\theta$. Maximizing it is called MAP (maximum a posteriori) or Bayesian estimation. It is a different method, not a mislabeled version of the same one.
+
+\textbf{3. ``Write $p(\mathbf{x})$ for a model with continuous latent $\mathbf{z}$ and state why a neural decoder makes this hard.''}
+\[
+p(\mathbf{x})=\int p(\mathbf{x}\mid\mathbf{z})\,p(\mathbf{z})\,d\mathbf{z}.
+\]
+The decoder $p(\mathbf{x}\mid\mathbf{z})$ is a nonlinear neural network in $\mathbf{z}$, so the function being integrated is too tangled to integrate by a formula. The slide says the integral ``does not factor through a nonlinear net.'' The hand notes put it as there being no closed-form antiderivative. Both mean there is no neat formula for the answer (slide~21).
+
+\textbf{4. ``A classifier outputs $p(y\mid\mathbf{x})$. Can you sample a new image from it? What extra object would you need?''} No. It reads images and gives labels, as in the top row of slide~16. To generate images you would also need $p(\mathbf{x})$, or $p(\mathbf{x}\mid y)$ together with $p(y)$, which is the generative path of slide~15.
+
+\textbf{5. ``In a GMM, why is $p(x_1,x_2)\neq p(x_1)\,p(x_2)$ even if $p(x_1,x_2\mid z)=p(x_1\mid z)\,p(x_2\mid z)$?''} The two coordinates share the hidden cluster $z$. Writing out the marginal for a discrete $z$ (hand notes),
+\[
+p(x_1,x_2)=\sum_{z}p(x_1\mid z)\,p(x_2\mid z)\,p(z).
+\]
+Each term is a product, but a \textit{sum} of products usually does not factor into a product of sums. Summing $z$ out breaks the product. Slide~23's umbrella example shows this with numbers.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\subsection*{Slide 33: What to carry into Week 2}
+\addcontentsline{toc}{subsection}{Slide 33: What to carry into Week 2}
+
+\textbf{What the slide shows.} Five summary bullets and a teal ``Before Thursday'' box.
+
+\textbf{The five bullets, in plain English.}
+\begin{enumerate}
+\item Generation means a distribution $p_\theta(\mathbf{x})$, not only a function that outputs a prediction.
+\item Maximum likelihood is the same as minimizing $\mathrm{KL}(p_{\text{data}}\|p_\theta)$, and it needs us to be able to compute $\log p_\theta(\mathbf{x})$ (slide~12).
+\item Latent variables explain why coordinates depend on each other, but the marginal likelihood has to integrate them out (slides 20--23).
+\item Discriminative models answer ``which label?'' Generative models answer ``what does data look like?'' (slides 15--18).
+\item Getting an exact $\log p(\mathbf{x})$ is a design choice. Next week we get it from the chain rule, at the price of sampling one piece at a time.
+\end{enumerate}
+
+\textbf{Before Thursday.} Read Tomczak Ch.~1 and Bishop's section on latent variables. Be ready to expand $p(x_1,x_2,x_3)$ with the chain rule in two different orders.
+
+The hand notes state the general chain rule for Week~2:
+\[
+p(x_1,\dots,x_D)=\prod_{i=1}^{D}p(x_i\mid x_1,\dots,x_{i-1}).
+\]
+\begin{itemize}
+\item $i$: the position of a coordinate in the chosen order.
+\item $p(x_i\mid x_1,\dots,x_{i-1})$: the chance of coordinate $i$ given all the coordinates before it. For $i=1$ there is nothing before it, so the factor is just $p(x_1)$.
+\end{itemize}
+What it says: you can build the probability of a whole object by going one piece at a time, each time asking ``how likely is this piece given everything so far.'' This is just the product rule from slide~8 applied over and over.
+
+For three variables, the order $x_1,x_2,x_3$ gives the expansion on slide~30:
+\[
+p(x_1,x_2,x_3)=p(x_1)\,p(x_2\mid x_1)\,p(x_3\mid x_1,x_2).
+\]
+Any other order is equally valid. For example, the order $x_3,x_1,x_2$ gives
+\[
+p(x_1,x_2,x_3)=p(x_3)\,p(x_1\mid x_3)\,p(x_2\mid x_1,x_3).
+\]
+Both equal the same joint, because the product rule holds no matter which variable you peel off first. The two products differ only in how the work is split into conditionals (hand notes).
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\subsection*{Slide 34: References for this lecture}
+\addcontentsline{toc}{subsection}{Slide 34: References for this lecture}
+
+\textbf{What the slide shows.} Five references.
+\begin{itemize}
+\item Bishop, \textit{Pattern Recognition and Machine Learning}, Springer, 2006, Ch.~8--9 (graphical models, mixtures, EM).
+\item Murphy, \textit{Probabilistic Machine Learning: An Introduction}, MIT Press, 2022, Ch.~3.
+\item Tomczak, \textit{Deep Generative Modeling}, Springer, 2022, Ch.~1.
+\item Goodfellow, Bengio, and Courville, \textit{Deep Learning}, MIT Press, 2016, \S5.5 and Ch.~20 (marked ``preview'').
+\item Ng and Jordan, ``On discriminative vs.\ generative classifiers,'' NeurIPS, 2001. This is the paper behind the comparison on slide~17.
+\end{itemize}
+As noted on slide~2, the readings slide gives Bishop Ch.~8--10 while this slide gives Ch.~8--9.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\appendix
+\subsection*{Appendix A: Hand-notes items not tied to one slide}
+\addcontentsline{toc}{subsection}{Appendix A: Hand-notes items not tied to one slide}
+
+\textbf{Mistakes that lose points.} The hand notes list six. In plain English, with where each is explained:
+\begin{enumerate}
+\item Calling $p(\theta\mid\mathcal{D})$ the likelihood. The likelihood is $p(\mathcal{D}\mid\theta)$ (slides 11 and 32).
+\item Treating a density value above 1 as illegal. A \textit{probability} above 1 is illegal; a density height is not (slides 7 and 32).
+\item Writing $p(\mathbf{x})=\int p(\mathbf{x}\mid\mathbf{z})\,d\mathbf{z}$ and dropping the prior $p(\mathbf{z})$ (slide~20).
+\item Claiming a classifier $p(y\mid\mathbf{x})$ can generate images. It cannot unless $p(\mathbf{x})$ or $p(\mathbf{x}\mid y)$ is also available (slides 15, 16, 32).
+\item Concluding $x_1\perp x_2$ from $x_1\perp x_2\mid z$. Independence given $z$ does not mean independence overall (slides 23 and 32).
+\item Swapping $\log$ and $\sum_k$ in a mixture. $\log\sum_k\pi_k\mathcal{N}_k$ is not $\sum_k\log(\pi_k\mathcal{N}_k)$ (slide~25).
+\end{enumerate}
+
+\textbf{EM formulas and the exam.} Know the responsibility $r_k(\mathbf{x})$ and the statement of the E-step and M-step. Do not memorize the update formulas unless a problem asks you to derive a specific M-step (slide~25).
+
+\textbf{Worked check.} The hand notes finish with worked answers to four of the mini-quiz questions (slide~32): the density above 1, the likelihood versus posterior mix-up, the hard integral, and the dependent coordinates in a mixture. They agree with the slide.
+
+\subsection*{Appendix B: Where Homework 1 draws its ideas from}
+\addcontentsline{toc}{subsection}{Appendix B: Where Homework 1 draws its ideas from}
+
+Homework 1 covers Lecture 1 and the Week 1 hand notes. It is due at the start of the Week 2 lecture, is worth 100 points, and asks for derivations with the steps shown. It also asks you to do the write-up, algebra, and numerical work yourself and not to look up worked solutions, so the table below only points to where each topic is explained. It contains no solutions.
+
+\begin{center}
+\begin{tabular}{p{0.3\textwidth}p{0.14\textwidth}p{0.42\textwidth}}
+\toprule
+Problem (points) & Slides & Notes \\
+\midrule
+1. Joint, marginal, conditional (16) & 8, 9, 15, 16, 17 & Product rule; marginal as a sum over labels; what a discriminative model can and cannot do \\ \addlinespace
+2. Bernoulli and Gaussian MLE (20) & 11, 12, 13 & Slide~13 works the Bernoulli case. The Gaussian case is not worked in the lecture or hand notes, so use the readings \\ \addlinespace
+3. Likelihood, KL, and what the words mean (18) & 7, 11, 12, 32 & Probability versus likelihood; the KL identity on slide~12; densities versus probabilities \\ \addlinespace
+4. A two-component mixture (24) & 23, 24, 32 & Mixture density; responsibility; why marginal dependence appears \\ \addlinespace
+5. Latent variables and the course map (22) & 20, 21, 27, 28 & Marginal likelihood, joint, posterior; why the integral is hard; the family table \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\end{document}
