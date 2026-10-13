@@ -6,8 +6,22 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 MAIN="main"
 OUTPUT="cse755"
 BUILD_DIR="$ROOT/build"
+UPLOAD=false
 
 cd "$ROOT"
+
+for arg in "$@"; do
+    case "$arg" in
+        -u)
+            UPLOAD=true
+            ;;
+        *)
+            echo "error: unknown argument: $arg" >&2
+            echo "usage: $0 [-u]" >&2
+            exit 1
+            ;;
+    esac
+done
 
 if ! command -v pdflatex >/dev/null 2>&1; then
     echo "error: pdflatex not found in PATH" >&2
@@ -30,3 +44,13 @@ done
 
 mv -f "$BUILD_DIR/$MAIN.pdf" "$ROOT/$OUTPUT.pdf"
 echo "==> built $ROOT/$OUTPUT.pdf"
+
+if [[ ! -f "$ROOT/$OUTPUT.pdf" ]]; then
+    echo "error: expected PDF was not generated at $ROOT/$OUTPUT.pdf" >&2
+    exit 1
+fi
+
+if [[ "$UPLOAD" == true ]]; then
+    echo "==> uploading $ROOT/$OUTPUT.pdf"
+    uv run upload.py
+fi
