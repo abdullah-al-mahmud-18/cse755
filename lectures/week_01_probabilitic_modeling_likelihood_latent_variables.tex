@@ -153,46 +153,192 @@ Use a \textbf{PDF} when working with a continuous quantity, such as the probabil
 
 The main difference is that a PMF gives probabilities for individual values, while a PDF uses area under a curve to find probabilities over ranges.
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\subsection*{Slide 8: Joint, marginal, conditional}
-\addcontentsline{toc}{subsection}{Slide 8: Joint, marginal, conditional}
+\subsection*{Slide 8: Joint, marginal, conditional probability}
+Imagine a class of 20 students. Some wear glasses, some don't, and some are in the school band, some aren't. Here's the full breakdown:
 
-\textbf{What the slide shows.} Let $\mathbf{x}$ be an image and $y\in\{\text{cat},\text{dog}\}$ a label. Three bullets define the \textbf{joint} $p(\mathbf{x},y)$, the \textbf{marginal} $p(\mathbf{x})$, and the \textbf{conditional} $p(y\mid\mathbf{x})$. A red callout at the bottom states the product rule.
+\begin{center}
+\begin{tabular}{lccc}
+\toprule
+ & In band & Not in band & Total \\
+\midrule
+\textbf{Glasses} & 4 & 6 & 10 \\
+\textbf{No glasses} & 2 & 8 & 10 \\
+\midrule
+\textbf{Total} & 6 & 14 & 20 \\
+\bottomrule
+\end{tabular}
+\end{center}
 
-\textbf{Joint.} $p(\mathbf{x},y)$ is the probability of this image \textit{and} this label together.
+All three types of probability come from reading this one table in different ways.
 
-\textbf{Marginal.}
+\subsubsection*{Joint probability: ``both things at once''}
+
+This is the chance that \textbf{two things are true at the same time}.
+
+\emph{What's the chance a random student wears glasses AND is in the band?}
+
+Look at the single cell where both overlap: 4 students out of 20.
+
 \[
-p(\mathbf{x})=\sum_y p(\mathbf{x},y).
+P(\text{glasses and band}) = \frac{4}{20} = 0.20 \; (20\%)
 \]
-\begin{itemize}
-\item $p(\mathbf{x})$: the probability of the image by itself.
-\item $\sum_y$: add over every possible label.
-\end{itemize}
-This says: to get the chance of seeing this image regardless of its label, add the chance of ``this image with label cat'' and ``this image with label dog.'' This is called ``summing the label away.'' For a continuous variable the sum becomes an integral.
 
-\textbf{Conditional.}
+\subsubsection*{Marginal probability: ``just one thing, ignore the other''}
+
+This is the chance of \textbf{one thing alone}, no matter what happens with the other. It's called ``marginal'' because you find it in the \textbf{margins} (the Total row and column) of the table.
+
+\emph{What's the chance a random student is in the band?}
+
+Ignore the glasses completely and use the band total: 6 out of 20.
+
 \[
-p(y\mid\mathbf{x})=\frac{p(\mathbf{x},y)}{p(\mathbf{x})}.
+P(\text{band}) = \frac{6}{20} = 0.30 \; (30\%)
 \]
-\begin{itemize}
-\item The vertical bar $\mid$ is read ``given.''
-\item $p(y\mid\mathbf{x})$: the probability of label $y$ \textit{if we already know the image is} $\mathbf{x}$.
-\end{itemize}
-This says: restrict attention to the world where the image is $\mathbf{x}$, and ask what fraction of that world has label $y$. We divide by $p(\mathbf{x})$ so the numbers over all labels add up to 1. It only makes sense when $p(\mathbf{x})>0$ (hand notes).
 
-\textbf{Product rule.}
+You get a marginal by adding up the joint probabilities across the other variable:
+
 \[
-p(\mathbf{x},y)=p(y\mid\mathbf{x})\,p(\mathbf{x})=p(\mathbf{x}\mid y)\,p(y).
+\frac{4 + 2}{20}
 \]
-This says: the chance of two things together equals the chance of one times the chance of the other given the first, and you may start with either. For example, the chance of ``rain and traffic'' equals the chance of rain times the chance of traffic given rain. It also equals the chance of traffic times the chance of rain given traffic. The first form is just the definition of the conditional with both sides multiplied by $p(\mathbf{x})$.
 
-The slide's key sentence is that both factorizations are true, but they \textit{suggest different models}. Which factor you choose to learn decides the kind of model you build (slides 15--16).
+\subsubsection*{Conditional probability: ``given that I already know something''}
+
+This is the chance of one thing \textbf{after you've been told something else is true}. The new information shrinks the group you're looking at.
+
+\emph{A student walks in wearing glasses. What's the chance they're in the band?}
+
+Now you only care about the 10 students with glasses, because that's the group you know they belong to. Of those 10, 4 are in the band.
+
+\[
+P(\text{band} \mid \text{glasses}) = \frac{4}{10} = 0.40 \; (40\%)
+\]
+
+The ``$\mid$'' means ``given that.'' Notice this is different from the marginal $P(\text{band}) = 30\%$. Learning about the glasses changed the answer.
+
+\subsubsection*{How they connect}
+
+Conditional probability is a joint divided by a marginal:
+
+\[
+P(\text{band} \mid \text{glasses}) = \frac{P(\text{glasses and band})}{P(\text{glasses})} = \frac{0.20}{0.50} = 0.40
+\]
+
+Dividing by $P(\text{glasses})$ is the ``shrink the group'' step: you're no longer measuring against all 20 students, only the 10 with glasses.
+
+\subsubsection*{Quick summary}
+
+\begin{center}
+\begin{tabular}{lll}
+\toprule
+Type & Question it answers & Group you divide by \\
+\midrule
+Joint & Both A and B? & Everyone \\
+Marginal & Just A? & Everyone \\
+Conditional & A, knowing B is true? & Only the B group \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+One common mix-up to avoid: $P(\text{band} \mid \text{glasses})$ is \textbf{not} the same as $P(\text{glasses} \mid \text{band})$. The first asks ``of glasses-wearers, how many are in band?'' (4/10). The second asks ``of band members, how many wear glasses?'' (4/6). Different groups, different answers.
+
+\subsubsection*{The Product Rule}
+
+Think of the product rule as the ``rearranged'' version of conditional probability. It lets you build a joint probability (both things at once) from smaller pieces.
+
+We'll use the same class of 20 students:
+
+\begin{center}
+\begin{tabular}{lccc}
+\toprule
+ & In band & Not in band & Total \\
+\midrule
+\textbf{Glasses} & 4 & 6 & 10 \\
+\textbf{No glasses} & 2 & 8 & 10 \\
+\midrule
+\textbf{Total} & 6 & 14 & 20 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\subsubsection*{The rule}
+
+\[
+P(A \text{ and } B) = P(A) \times P(B \mid A)
+\]
+
+In words: \emph{the chance of both things happening = the chance of the first thing $\times$ the chance of the second thing, given the first already happened.}
+
+\subsubsection*{Why it works: step by step}
+
+Say we want $P(\text{glasses and band})$. Think of it as two steps:
+
+\begin{enumerate}
+\item \textbf{Pick a student, and hope they wear glasses.}
+\[
+P(\text{glasses}) = \frac{10}{20} = 0.50
+\]
+\item \textbf{Now, among only the glasses-wearers, hope this student is in the band.}
+\[
+P(\text{band} \mid \text{glasses}) = \frac{4}{10} = 0.40
+\]
+\end{enumerate}
+
+Multiply the two steps:
+
+\[
+P(\text{glasses and band}) = 0.50 \times 0.40 = 0.20
+\]
+
+Check against the table: 4 students out of 20 = 0.20. It matches.
+
+\subsubsection*{Why multiplying makes sense}
+
+Take half of the class (the glasses group), then take 40\% of that half. Half of 20 is 10 students, and 40\% of 10 is 4 students. Each step shrinks the group, and multiplication does that shrinking.
+
+\subsubsection*{Where it comes from}
+
+It's just the conditional probability formula with both sides multiplied by $P(A)$:
+
+\[
+P(B \mid A) = \frac{P(A \text{ and } B)}{P(A)} \quad \rightarrow \quad P(A \text{ and } B) = P(A) \times P(B \mid A)
+\]
+
+\subsubsection*{Order doesn't matter}
+
+You can start with either event:
+
+\[
+P(A \text{ and } B) = P(B) \times P(A \mid B)
+\]
+
+Using band first: $P(\text{band}) = 6/20 = 0.30$, and $P(\text{glasses} \mid \text{band}) = 4/6$. Then
+
+\[
+0.30 \times \frac{4}{6} = 0.20
+\]
+
+Same answer.
+
+\subsubsection*{Special case: independent events}
+
+If knowing $A$ tells you nothing about $B$, then
+
+\[
+P(B \mid A) = P(B)
+\]
+
+and the rule simplifies to
+
+\[
+P(A) \times P(B)
+\]
+
+That's the shortcut you may have seen for things like two coin flips. In our class, $P(\text{band} \mid \text{glasses}) = 0.40$ but $P(\text{band}) = 0.30$, so glasses and band are \emph{not} independent, and we need the full product rule.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \subsection*{Slide 9: Bayes' rule}
-\addcontentsline{toc}{subsection}{Slide 9: Bayes' rule}
 
-\textbf{What the slide shows.} On top, the equation with labels drawn under and over its pieces. On the lower left, four bullets. On the lower right, a small diagram: a circle $y$ (reddish) with ``$p(y)$'' written beside it, an arrow downward labeled ``$p(\mathbf{x}\mid y)$,'' and a circle $\mathbf{x}$ (bluish) at the bottom. Caption: ``Directed model: sample a label, then an image.''
+Bayes' rule is a way to \textbf{update what you believe when you get new evidence}.
 
 \[
 \underbrace{p(y\mid\mathbf{x})}_{\text{posterior}}
@@ -207,11 +353,86 @@ The slide's key sentence is that both factorizations are true, but they \textit{
 \item \textbf{Evidence} $p(\mathbf{x})=\sum_y p(\mathbf{x}\mid y)\,p(y)$: the overall probability of the image, adding up over all labels.
 \end{itemize}
 
-\textbf{What the equation says.} Bayes' rule flips the direction of ``given.'' It starts from what is easy to state (how images look for each label, plus how common each label is) and produces what a classifier wants (how likely each label is for this image). It comes from setting the two product-rule forms equal, $p(y\mid\mathbf{x})p(\mathbf{x})=p(\mathbf{x}\mid y)p(y)$, and dividing by $p(\mathbf{x})$.
+\subsubsection*{The idea}
 
-\textbf{Small numeric example} (pretend $\mathbf{x}$ is a simple discrete observation so the numbers are probabilities). Suppose $p(\text{cat})=0.7$ and $p(\text{dog})=0.3$. For the image we observed, suppose $p(\mathbf{x}\mid\text{cat})=0.2$ and $p(\mathbf{x}\mid\text{dog})=0.5$. The evidence is $0.2\cdot 0.7+0.5\cdot 0.3=0.14+0.15=0.29$. So the posterior for cat is $0.14/0.29\approx 0.48$ and for dog is $0.15/0.29\approx 0.52$. Before seeing the image we favored cat. The image looked more typical of dogs, and that flipped the belief.
+You start with a guess about how likely something is. Then you see a clue. Bayes' rule tells you how much that clue should change your guess.
 
-\textbf{The diagram.} The arrow points in the \textit{sampling} direction: pick a label from the prior, then draw an image from the class-conditional distribution. The posterior runs \textit{against} the arrow, from image back to label, and is exactly what a classifier computes (hand notes).
+\subsubsection*{An example}
+
+Say 1 out of every 100 students in your school has the flu (1\%). The school has a test for it, and the test is pretty good: it correctly says ``positive'' for 90\% of students who really have the flu. But it also says ``positive'' by mistake for 9\% of healthy students.
+
+You test positive. What are the chances you actually have the flu? Most people say ``about 90\%.'' That's wrong. Let's work it out with 1,000 students:
+
+\begin{itemize}
+  \item 10 students have the flu (1\% of 1,000). The test catches 9 of them.
+  \item 990 students are healthy. The test wrongly flags about 89 of them (9\% of 990).
+  \item So about 98 students test positive in total (9 + 89).
+  \item Of those 98, only 9 really have the flu.
+\end{itemize}
+
+Chance you have the flu, given a positive test:
+\[
+\frac{9}{98} \approx 9\%
+\]
+
+The test is good, but the flu is rare, so most positive results come from healthy people getting false alarms.
+
+\subsubsection*{The formula}
+
+Bayes' rule is just that counting written in symbols:
+\[
+P(A \mid B) = \frac{P(B \mid A) \times P(A)}{P(B)}
+\]
+
+\begin{itemize}
+  \item $P(A \mid B)$: the chance of A, given that B happened (chance of flu, given a positive test). This is what you want.
+  \item $P(B \mid A)$: the chance of B if A is true (chance of a positive test if you have the flu: 90\%).
+  \item $P(A)$: how likely A was before any evidence (1\% had the flu). This is called the \emph{prior}.
+  \item $P(B)$: how likely B is overall (about 9.8\% of everyone tests positive).
+\end{itemize}
+
+Plugging in:
+\[
+\frac{0.90 \times 0.01}{0.098} \approx 0.09 \text{, or } 9\%
+\]
+
+\subsubsection*{The takeaway}
+
+Evidence matters, but so does what you already knew. A strong clue about a rare thing can still leave the thing unlikely. Bayes' rule is how you combine both properly.
+
+\subsubsection*{Why 90\% Is Wrong}
+
+The 90\% answer feels right because it mixes up two different questions:
+
+\begin{enumerate}
+  \item \textbf{If you have the flu, how likely is a positive test?} This is 90\%. It's the test's accuracy.
+  \item \textbf{If you got a positive test, how likely is it that you have the flu?} This is what you actually want to know, and it's about 9\%.
+\end{enumerate}
+
+They sound almost the same, but they are not. The test's 90\% only describes what happens \emph{among sick people}. It says nothing about how many sick people there are in the first place.
+
+\subsubsection*{Why the second question has a different answer}
+
+Think about who ends up in the ``positive'' group. Two kinds of students are in it:
+
+\begin{itemize}
+  \item Sick students the test correctly caught: \textbf{9}
+  \item Healthy students the test wrongly flagged: \textbf{about 89}
+\end{itemize}
+
+The healthy group is huge (990 students), so even a small 9\% mistake rate produces a lot of false alarms. 9\% of 990 is far more than 90\% of 10. The false alarms simply outnumber the real catches, roughly 10 to 1.
+
+So if you pick a random student from the positive group, they are much more likely to be a healthy student with a false alarm than a sick student.
+
+\subsubsection*{An everyday comparison}
+
+Imagine a metal detector that beeps for 90\% of real knives, but also beeps by accident for 9\% of harmless things like belt buckles and keys. If only 1 in 100 people carries a knife, then almost every beep is a belt buckle. A beep is a clue, but not proof, because knives are rare to begin with.
+
+\subsubsection*{Why intuition fails}
+
+Our brains focus on the test's accuracy (the vivid, exciting number) and ignore how rare the flu is (the boring background number). This mistake is called \textbf{base rate neglect}. The ``base rate'' is how common something is before any testing, and it has a big effect on the final answer.
+
+\textbf{Quick check:} if half the school had the flu, the same positive test would be far more convincing. The test hasn't changed, only the base rate has. That is why you can't judge a test result without knowing how common the thing is.
 
 \textit{Hand notes: same names, two uses.} The four names are reused later with a latent $\mathbf{z}$ in place of the label $y$:
 
@@ -233,7 +454,7 @@ Evidence / marginal & $p(\mathbf{x})$ & $p(\mathbf{x})=\int p(\mathbf{x},\mathbf
 \subsection*{Slide 10: Independence and the i.i.d.\ assumption}
 \addcontentsline{toc}{subsection}{Slide 10: Independence and the i.i.d.\ assumption}
 
-\textbf{What the slide shows.} Three boxes: Independence, Conditional independence, and i.i.d.\ data.
+This slide has three boxes about when things do or do not affect each other. The first box, \textbf{Independence}, is about two things that tell you nothing about each other. The second box, \textbf{Conditional independence}, is about two things that stop affecting each other once you know a third thing. The third box, \textbf{i.i.d.\ data}, is about the usual assumption that training examples are separate draws from the same source, which lets us find the chance of a whole dataset by multiplying.
 
 \textbf{Independence.}
 \[
@@ -264,7 +485,7 @@ p(\mathcal{D}\mid\theta)=\prod_{n=1}^{N}p\big(\mathbf{x}^{(n)}\mid\theta\big).
 \subsection*{Slide 11: Likelihood is a function of the parameters}
 \addcontentsline{toc}{subsection}{Slide 11: Likelihood is a function of the parameters}
 
-\textbf{What the slide shows.} Two boxes side by side, then two equations, then one sentence.
+This slide shows that one formula, $p(\text{data}\mid\theta)$, can be read in two different ways. In the first box, we keep the knobs $\theta$ fixed and ask what data we might see. In the second box, we keep the data fixed and ask which knob settings explain it best. Under the boxes are two equations, one for the likelihood and one for the log-likelihood, and a single sentence about why we take the log.
 \begin{itemize}
 \item \textbf{Probability box:} $\theta$ fixed, $\mathbf{x}$ varies. $p(\mathbf{x}\mid\theta)$ is a distribution over data.
 \item \textbf{Likelihood box:} $\mathbf{x}$ fixed (the dataset), $\theta$ varies. $L(\theta)=p(\mathcal{D}\mid\theta)$. $L$ is \textit{not} a probability distribution over $\theta$ unless we add a prior.
@@ -299,7 +520,7 @@ The equations say: the log-likelihood is just the likelihood after taking a log,
 \subsection*{Slide 12: Maximum likelihood estimation}
 \addcontentsline{toc}{subsection}{Slide 12: Maximum likelihood estimation}
 
-\textbf{What the slide shows.} A blue MLE box with the main formula, then a ``Why this objective?'' equation, one sentence about entropy, and a red callout titled ``Direction of KL matters.''
+This slide explains maximum likelihood estimation (MLE), which simply means choosing the knob settings that make the data we saw as likely as possible. A blue box holds the main formula. Below it, an equation shows why this goal makes sense: it is the same as making the model as close as possible to the real data. A sentence about entropy follows. A red box at the bottom warns that the direction of the KL divergence matters.
 
 \textbf{The MLE formula.}
 \[
@@ -328,7 +549,7 @@ What the equation says: the model's average score equals a fixed number set by n
 \subsection*{Slide 13: Worked example: Bernoulli MLE}
 \addcontentsline{toc}{subsection}{Slide 13: Worked example: Bernoulli MLE}
 
-\textbf{What the slide shows.} A fully worked MLE for coin flips, then a green ``Lesson'' box.
+This slide walks through a complete MLE example using coin flips. The model has just one knob, the chance of heads. The slide writes down the score for the flips we saw, uses a little calculus to find the knob setting with the best score, and discovers that the answer is simply the fraction of flips that came up heads. A green ``Lesson'' box at the end explains what changes when we move from coins to deep models.
 
 \textbf{Setup.} Each flip $x^{(n)}$ is 1 (say, heads) or 0 (tails). The model has one knob: $p(x=1\mid\theta)=\theta$, the chance of heads. Let $N_1$ be the number of heads, $N_0$ the number of tails, and $N=N_1+N_0$.
 
@@ -364,7 +585,7 @@ Step by step: $N_1/\theta=N_0/(1-\theta)$ gives $N_1(1-\theta)=N_0\theta$, so $N
 \subsection*{Slide 14: What ``a good density'' buys you}
 \addcontentsline{toc}{subsection}{Slide 14: What ``a good density'' buys you}
 
-\textbf{What the slide shows.} Four bullets: compression, anomaly detection, sampling and imputation, and downstream Bayes.
+This slide lists four useful things you can do once your model gives a good score for how likely any piece of data is. You can \textbf{compress} data into fewer bits. You can spot \textbf{unusual inputs} (anomaly detection). You can \textbf{fill in or make up} missing parts (sampling and imputation). And you can build a \textbf{classifier} out of the model using Bayes' rule (downstream Bayes).
 
 \textbf{Compression and bits per dimension.}
 \[
@@ -387,11 +608,11 @@ The equation says: the average number of bits the model spends per number in the
 \subsection*{Slide 15: Two ways to factor the joint}
 \addcontentsline{toc}{subsection}{Slide 15: Two ways to factor the joint}
 
-\textbf{What the slide shows.} One equation with two labeled braces, then two boxes.
+This slide starts with one equation that breaks the joint probability of a picture and its label into pieces in two different ways. The first way, called the discriminative path, starts from the picture and works toward the label. The second way, called the generative path, starts from the label and works toward the picture. Two boxes under the equation describe the kind of model that goes with each path. The hand notes put it like this: start from the product rule and stop at different factors.
 \[
 p(\mathbf{x},y)=\underbrace{p(y\mid\mathbf{x})\,p(\mathbf{x})}_{\text{discriminative path}}=\underbrace{p(\mathbf{x}\mid y)\,p(y)}_{\text{generative path}}.
 \]
-This is the product rule from slide~8, now used to define two kinds of models. The hand notes put it as: start from the product rule and stop at different factors.
+This is the product rule from slide~8, now used to define two kinds of models.
 
 \textbf{Discriminative model.} It learns $p(y\mid\mathbf{x})$, or a decision score $f(\mathbf{x})$. Examples on the slide: logistic regression, ResNet classifiers, and most BERT fine-tunes for classification. The slide's key point is that the model never defines how images are produced.
 
@@ -410,12 +631,11 @@ This is the product rule from slide~8, now used to define two kinds of models. T
 \subsection*{Slide 16: Diagram: what each model is allowed to do}
 \addcontentsline{toc}{subsection}{Slide 16: Diagram: what each model is allowed to do}
 
-\textbf{What the slide shows.} Two horizontal chains of nodes.
+This slide has two drawings, each made of circles and boxes joined by arrows. The top drawing is the discriminative model: a picture $\mathbf{x}$ goes into a box $p(y\mid\mathbf{x})$, and a label $y$ comes out. The bottom drawing is the generative model: it starts with a label $y$ (chosen using the prior $p(y)$), passes through a box $p(\mathbf{x}\mid y)$, and ends with a picture $\mathbf{x}$. The caption says the arrows show the direction of sampling. So the top model reads a picture and gives a label, while the bottom model can draw a label and then make a picture. If there are no labels at all, you drop $y$ and just draw $\mathbf{x}\sim p(\mathbf{x})$.
 \begin{itemize}
 \item \textbf{Discriminative} (top): a blue circle $\mathbf{x}$, then an arrow into a box $p(y\mid\mathbf{x})$, then an arrow into a reddish circle $y$.
 \item \textbf{Generative} (bottom): a reddish circle $y$ with ``prior $p(y)$'' written under it, then an arrow into a box $p(\mathbf{x}\mid y)$, then an arrow into a blue circle $\mathbf{x}$.
 \end{itemize}
-The caption says the arrows are the \textit{sampling} direction. A discriminative model reads $\mathbf{x}$ and emits $y$. A generative model can draw $y$ and then draw $\mathbf{x}$. Unconditional models drop $y$ and just draw $\mathbf{x}\sim p(\mathbf{x})$.
 
 \textbf{Plain English.} Notice that the arrows point in opposite directions. The top chain goes from picture to label, so you can only hand it a picture and get a label. The bottom chain starts from a label (chosen using the prior $p(y)$) and ends at a picture, so it can \textit{manufacture} pictures. The reddish circle is the label and the bluish circle is the image in both rows, so the only thing that changes is the direction of the arrow. If there are no labels at all, the generative chain shrinks to a single step that draws $\mathbf{x}$ directly.
 
@@ -423,7 +643,7 @@ The caption says the arrows are the \textit{sampling} direction. A discriminativ
 \subsection*{Slide 17: Comparison}
 \addcontentsline{toc}{subsection}{Slide 17: Comparison}
 
-\textbf{What the slide shows.} A table, then a paragraph about Ng and Jordan (2001).
+This slide has a table that compares discriminative and generative models row by row: what each one learns, the typical training score, whether you can sample new data, how each handles missing data, how much data each needs, and how each tends to fail. Below the table is a paragraph about a 2001 paper by Ng and Jordan, which compared the two kinds of models when you have little data and when you have a lot.
 
 \begin{center}
 \begin{tabular}{p{0.17\textwidth}p{0.27\textwidth}p{0.32\textwidth}}
@@ -457,7 +677,7 @@ Failure mode & Overconfident OOD predictions & Mode collapse, blur, high cost \\
 \subsection*{Slide 18: Generative models that still classify}
 \addcontentsline{toc}{subsection}{Slide 18: Generative models that still classify}
 
-\textbf{What the slide shows.} One equation, a teal box on Gaussian discriminant analysis, and two bullets.
+This slide shows that a generative model can also be used to sort things into classes. One equation says to pick the label with the biggest value of likelihood times prior. A teal box introduces Gaussian discriminant analysis, an older method that models each class as its own bell-shaped cloud of points. Two bullets at the end explain how this old idea can be upgraded into the deep models we will study.
 
 \textbf{Classify using Bayes.}
 \[
@@ -490,7 +710,7 @@ This says: each class is modeled as its own bell-shaped cloud of points, and eac
 \subsection*{Slide 19: Why introduce variables we never observe?}
 \addcontentsline{toc}{subsection}{Slide 19: Why introduce variables we never observe?}
 
-\textbf{What the slide shows.} A definition box and three reasons.
+This slide asks a fair question: why would we add variables to a model if we never see them in the data? A box defines a latent (hidden) variable as a hidden, compressed cause of the data, with examples such as which digit it is, its pose, an object's color, or the topic of a document. The slide then gives three reasons why hidden variables are worth having.
 
 \textbf{Latent variable.} A latent (hidden) variable $\mathbf{z}$ is part of the model but is not in the dataset. It is a compressed \textit{cause} of $\mathbf{x}$. The slide's examples are digit identity, pose, object color, and a topic in a document.
 
@@ -505,7 +725,7 @@ This says: each class is modeled as its own bell-shaped cloud of points, and eac
 \subsection*{Slide 20: The generative story}
 \addcontentsline{toc}{subsection}{Slide 20: The generative story}
 
-\textbf{What the slide shows.} A small diagram, a two-step sampling recipe, and the marginal likelihood formula. In the diagram, a box ``parameters $\theta$'' has an arrow pointing into a reddish circle $\mathbf{z}$, with ``prior $p_\theta(\mathbf{z})$'' written under it. From $\mathbf{z}$, an arrow labeled $p_\theta(\mathbf{x}\mid\mathbf{z})$ points to a bluish circle $\mathbf{x}$.
+This slide tells the story of how a model with a hidden variable makes data. A small picture shows the knobs $\theta$ pointing to a hidden cause $\mathbf{z}$ (with its prior $p_\theta(\mathbf{z})$), and then an arrow from $\mathbf{z}$ to the observed data $\mathbf{x}$, labeled $p_\theta(\mathbf{x}\mid\mathbf{z})$. Next comes a two-step recipe for making new data: first pick the hidden cause, then make the observation from it. Last, the slide gives the formula for the marginal likelihood, which is what we use for learning, since we never get to see $\mathbf{z}$. In the picture, $\mathbf{z}$ is the reddish circle and $\mathbf{x}$ is the bluish circle.
 
 \textbf{Sampling (``ancestral,'' along the arrows).}
 \begin{enumerate}
@@ -533,7 +753,7 @@ What the equation says: we do not know which hidden cause produced $\mathbf{x}$,
 \subsection*{Slide 21: Marginal likelihood, posterior, and the hard integral}
 \addcontentsline{toc}{subsection}{Slide 21: Marginal likelihood, posterior, and the hard integral}
 
-\textbf{What the slide shows.} Three bullets, then a red ``Intractability'' callout with three weekly pointers.
+This slide describes three related probabilities that all come from one model with a hidden variable: the joint, the marginal likelihood, and the posterior. A red box then explains the big problem. The marginal likelihood is very hard to compute when the hidden variable is continuous and the decoder is a neural network. The box ends by pointing to the weeks of the course that each take a different path around this problem.
 
 \textbf{Three distributions, one model.}
 \[
@@ -570,7 +790,7 @@ ELBO stands for evidence lower bound: a number we \textit{can} compute that is g
 \subsection*{Slide 22: Plate notation}
 \addcontentsline{toc}{subsection}{Slide 22: Plate notation}
 
-\textbf{What the slide shows.} A diagram, three bullets, and an equation. In the diagram a dashed rounded rectangle (the \textbf{plate}) contains a reddish circle $\mathbf{z}_n$ above a bluish circle $\mathbf{x}_n$, with an arrow from $\mathbf{z}_n$ down to $\mathbf{x}_n$. A letter $N$ sits at the lower right of the rectangle. Outside the rectangle, to the right, is a small square labeled $\theta$ with two arrows going in, one to $\mathbf{z}_n$ and one to $\mathbf{x}_n$.
+This slide teaches plate notation, a shortcut for drawing a model that has many data points. In the picture, a dashed rectangle (the \textbf{plate}) holds a hidden circle $\mathbf{z}_n$ sitting above an observed circle $\mathbf{x}_n$, with an arrow pointing from the top one to the bottom one. A letter $N$ in the corner of the rectangle means ``repeat this $N$ times.'' Outside the rectangle is a small square $\theta$ (the knobs) with arrows into both circles, because every data point shares the same knobs. Three bullets explain how to read the picture, and an equation gives the probability of the whole dataset.
 
 \textbf{Reading the diagram.}
 \begin{itemize}
@@ -595,7 +815,7 @@ What the equation says: the chance of the whole dataset is the product, over dat
 \subsection*{Slide 23: Conditional independence given the latent}
 \addcontentsline{toc}{subsection}{Slide 23: Conditional independence given the latent}
 
-\textbf{What the slide shows.} A diagram and a formula. At the top is a reddish circle $\mathbf{z}$. Three arrows run down from it to bluish circles $x_1$, $x_2$, and $x_D$, with ``$\cdots$'' between $x_2$ and $x_D$ to show there are $D$ of them in total.
+This slide shows a hidden variable $\mathbf{z}$ at the top, with arrows going down to many observed pieces $x_1$, $x_2$, and so on up to $x_D$ (for example, the pixels of an image). The formula says that once you know $\mathbf{z}$, the pieces no longer affect each other, so the chance of the whole $\mathbf{x}$ is found by multiplying the chances of the pieces.
 
 \textbf{The assumption.}
 \[
@@ -618,7 +838,7 @@ This says: once you know the hidden cause $\mathbf{z}$, the coordinates of $\mat
 \subsection*{Slide 24: Running example: a Gaussian mixture}
 \addcontentsline{toc}{subsection}{Slide 24: Running example: a Gaussian mixture}
 
-\textbf{What the slide shows.} Formulas, four bullets, and a small plot. The plot has a horizontal axis labeled $x$ and two bell-shaped bumps. The left bump is teal and labeled $k=1$. The right bump is orange and labeled $k=2$. The two bumps are separate and only just touch at their feet. The caption says: ``Two components. The marginal is the sum of the curves, not a single Gaussian.'' Note that the plot draws only the two component curves, not their sum.
+This slide introduces the Gaussian mixture, the main example we will use for the rest of the lecture. A hidden variable $z$ picks which of $K$ clusters a data point belongs to, and each cluster is shaped like a bell curve. The slide gives formulas for the model, the overall density, and the \textit{responsibility} (how likely each cluster is for a given point), along with four bullets and a small plot. The plot shows two separate bell curves on a line labeled $x$: a teal one on the left ($k=1$) and an orange one on the right ($k=2$), which only just touch at their feet. The caption says the overall curve is the sum of the two, not a single Gaussian, but note that the plot draws only the two separate curves, not their sum.
 
 \textbf{The model.} A discrete latent $z\in\{1,\dots,K\}$ says which cluster, and the observation $\mathbf{x}\in\mathbb{R}^d$ is continuous.
 \[
@@ -653,7 +873,7 @@ This is Bayes' rule (slide~9) with the cluster label as the unknown. The top is 
 \subsection*{Slide 25: Why EM appears (preview)}
 \addcontentsline{toc}{subsection}{Slide 25: Why EM appears (preview)}
 
-\textbf{What the slide shows.} The mixture log-likelihood, a blue ``Expectation--Maximization'' box, and a closing paragraph.
+This slide gives a preview of a method called Expectation--Maximization, or EM. It begins with the log-likelihood of the mixture model, which is hard to maximize because it has a log sitting outside a sum. A blue box then describes EM as a simple two-step routine that guesses which cluster each point belongs to and then refits the clusters, over and over. A closing paragraph connects EM to the VAE we will meet in Week~3.
 
 \textbf{The difficulty.}
 \[
@@ -676,7 +896,7 @@ The slide says EM maximizes the marginal likelihood by repeatedly lower-bounding
 \subsection*{Slide 26: Complete data vs.\ incomplete data}
 \addcontentsline{toc}{subsection}{Slide 26: Complete data vs.\ incomplete data}
 
-\textbf{What the slide shows.} Two boxes side by side. The left (teal) is titled Complete. The right (red) is titled Incomplete.
+This slide has two boxes side by side. The teal box, \textbf{Complete}, shows the easy case where we get to see both the data $\mathbf{x}$ and the hidden variable $\mathbf{z}$. The red box, \textbf{Incomplete}, shows the real case where we only see $\mathbf{x}$, so the log ends up outside an integral. The slide then brings in Jensen's inequality, a math trick that turns this hard problem into a lower bound that we can actually compute.
 
 \textbf{Complete data.} If we observed both $\mathbf{x}$ and $\mathbf{z}$, the objective would be
 \[
@@ -707,7 +927,7 @@ The practical payoff is that the right-hand side moves the log \textit{inside} t
 \subsection*{Slide 27: A taxonomy you will reuse all semester}
 \addcontentsline{toc}{subsection}{Slide 27: A taxonomy you will reuse all semester}
 
-\textbf{What the slide shows.} A table of six model families, with the course week in which each is taught, and two definitions underneath.
+This slide is a big table that sorts generative models into six families: autoregressive, variational autoencoder, GAN, diffusion, energy-based, and normalizing flow. Each row also says which week of the course covers that family. For every family, the table answers three questions: can the model give an exact probability for a piece of data, how does it make new samples, and what role does a hidden variable play. Two definitions under the table explain the words \textit{implicit} and \textit{unnormalized}.
 
 \begin{center}
 \begin{tabular}{p{0.26\textwidth}p{0.2\textwidth}p{0.19\textwidth}p{0.23\textwidth}}
@@ -748,15 +968,7 @@ What it says: to get a real probability you would divide by $Z$, as in $p=\tilde
 \subsection*{Slide 28: How the families relate}
 \addcontentsline{toc}{subsection}{Slide 28: How the families relate}
 
-\textbf{What the slide shows.} A tree diagram.
-\begin{itemize}
-\item The root, at the top, is a tan box: ``Probabilistic generative model $p_\theta(\mathbf{x})$.''
-\item Three arrows lead to three blue boxes in the middle: ``Tractable likelihood,'' ``Bound or score,'' and ``Implicit sampler.''
-\item Under ``Tractable likelihood'' are two boxes: AR (examples PixelCNN, GPT) and Flow (examples RealNVP, Glow).
-\item Under ``Bound or score'' are two boxes: VAE and Diffusion.
-\item Under ``Implicit sampler'' is one box: GAN.
-\end{itemize}
-In the rendered slide the bottom row of boxes overlaps, so parts of the AR and Flow labels are hidden behind their neighbors. The example names above are taken from the slide's text layer. Energy-based models are in the table on slide~27 but are not drawn in this tree.
+This slide is a family tree that groups generative models by what you are able to compute. At the very top is the general idea, a probabilistic generative model $p_\theta(\mathbf{x})$ (a tan box). It splits into three blue boxes: \textit{tractable likelihood}, \textit{bound or score}, and \textit{implicit sampler}. Under each blue box are the specific model families that belong to it: AR (like PixelCNN and GPT) and Flow (like RealNVP and Glow) under the first, VAE and Diffusion under the second, and GAN under the third. In the rendered slide the bottom row of boxes overlaps, so parts of the AR and Flow labels are hidden behind their neighbors. The example names above are taken from the slide's text layer. Energy-based models are in the table on slide~27 but are not drawn in this tree.
 
 \textbf{What it says.} The families are grouped by the \textit{training signal}: what you are able to compute and optimize. Some can compute the likelihood exactly. Some can only compute a bound or a score. Some define only a sampler and compute no density. The grouping is \textbf{not} about image quality.
 
@@ -766,7 +978,7 @@ The caption adds a warning: a model can move between boxes. For example, a VAE w
 \subsection*{Slide 29: What we will \textit{not} treat as the same thing}
 \addcontentsline{toc}{subsection}{Slide 29: What we will \textit{not} treat as the same thing}
 
-\textbf{What the slide shows.} Four bullets, each of the form ``A $\neq$ B.''
+This slide lists four pairs of ideas that sound alike but are actually different, so you should not mix them up. Each bullet has the form ``A is not the same as B.'' The pairs are: an autoencoder versus a generative model, a GAN discriminator versus a plain classifier, sampling versus adding noise to a training image, and likelihood versus how good a picture looks.
 \begin{enumerate}
 \item \textbf{Autoencoder $\neq$ generative model.} A vanilla autoencoder maps $\mathbf{x}\to\mathbf{z}\to\hat{\mathbf{x}}$. It squeezes the input to a code and rebuilds it. But it does not define a prior $p(\mathbf{z})$ or a valid density, so there is no principled way to draw new data from it. A \textit{variational} autoencoder adds both.
 \item \textbf{Discriminator $\neq$ classifier of real data only.} In a GAN, the discriminator is trained adversarially against a moving generator. Its job keeps changing as the generator improves.
@@ -778,7 +990,7 @@ The caption adds a warning: a model can move between boxes. For example, a VAE w
 \subsection*{Slide 30: Directed graphical model, in one slide}
 \addcontentsline{toc}{subsection}{Slide 30: Directed graphical model, in one slide}
 
-\textbf{What the slide shows.} A definition, a formula, and two diagrams.
+This slide explains directed graphical models, which are drawings where arrows show which variables depend on which. It gives one general rule for turning such a drawing into a formula, and then shows two example drawings. The left drawing has a hidden $z$ with arrows pointing down to $x_1$, $x_2$, and $x_3$. The right drawing is a chain $x_1\to x_2\to x_3$, with an extra curved arrow that jumps from $x_1$ straight to $x_3$.
 \begin{itemize}
 \item \textbf{Left diagram (latent-variable joint):} a reddish circle $z$ with three arrows down to $x_1$, $x_2$, $x_3$. Label: $p(z)\prod_d p(x_d\mid z)$.
 \item \textbf{Right diagram (fully autoregressive joint):} three circles in a row, $x_1\to x_2\to x_3$, plus a curved arrow jumping from $x_1$ directly to $x_3$. Label: $p(x_1)\,p(x_2\mid x_1)\,p(x_3\mid x_1,x_2)$.
@@ -808,7 +1020,7 @@ What it says: to get the joint probability, multiply one factor per node, where 
 \subsection*{Slide 31: Notation cheat sheet}
 \addcontentsline{toc}{subsection}{Slide 31: Notation cheat sheet}
 
-\textbf{What the slide shows.} A two-column table. Here it is with a plain-English column added.
+This slide is a cheat sheet that lists the symbols we will use all semester. Each row gives a symbol and what the slide says it means. The table below adds a third column that says the same thing in plain English.
 
 \begin{center}
 \begin{tabular}{p{0.3\textwidth}p{0.24\textwidth}p{0.32\textwidth}}
@@ -839,7 +1051,7 @@ $\mathrm{KL}(p\|q)=\mathbb{E}_p[\log p-\log q]$ & Kullback--Leibler divergence &
 \subsection*{Slide 32: Mini-quiz (think, then check)}
 \addcontentsline{toc}{subsection}{Slide 32: Mini-quiz (think, then check)}
 
-\textbf{What the slide shows.} Five numbered questions, followed by answers at the bottom. Each question and answer is explained below.
+This slide is a short quiz of five questions so you can test yourself, with the answers printed at the bottom. The questions ask about density values bigger than 1, mixing up likelihood and posterior, why the hidden-variable integral is hard, whether a classifier can make new images, and why the coordinates in a mixture model depend on each other. Each question and answer is explained below.
 
 \textbf{1. ``A density value $p(\mathbf{x})=4.2$ is illegal. True or false?''} False. A density is a height, not a probability, and heights can exceed 1 as long as the total area is 1 (slide~7). What \textit{cannot} exceed 1 is the probability of a region.
 
@@ -863,7 +1075,7 @@ Each term is a product, but a \textit{sum} of products usually does not factor i
 \subsection*{Slide 33: What to carry into Week 2}
 \addcontentsline{toc}{subsection}{Slide 33: What to carry into Week 2}
 
-\textbf{What the slide shows.} Five summary bullets and a teal ``Before Thursday'' box.
+This slide wraps up Week 1. It gives five short summary points about what you should remember, plus a teal box called ``Before Thursday'' that tells you what to read and practice before the next lecture.
 
 \textbf{The five bullets, in plain English.}
 \begin{enumerate}
@@ -900,7 +1112,7 @@ Both equal the same joint, because the product rule holds no matter which variab
 \subsection*{Slide 34: References for this lecture}
 \addcontentsline{toc}{subsection}{Slide 34: References for this lecture}
 
-\textbf{What the slide shows.} Five references.
+This slide lists five books and papers you can read to learn more about the topics in this lecture.
 \begin{itemize}
 \item Bishop, \textit{Pattern Recognition and Machine Learning}, Springer, 2006, Ch.~8--9 (graphical models, mixtures, EM).
 \item Murphy, \textit{Probabilistic Machine Learning: An Introduction}, MIT Press, 2022, Ch.~3.
