@@ -1,0 +1,84 @@
+\subsubsection*{Bayes' Rule Explained}
+
+
+
+\subsubsection*{The idea}
+
+You start with a guess about how likely something is. Then you see a clue. Bayes' rule tells you how much that clue should change your guess.
+
+\subsubsection*{An example}
+
+Say 1 out of every 100 students in your school has the flu (1\%). The school has a test for it, and the test is pretty good: it correctly says ``positive'' for 90\% of students who really have the flu. But it also says ``positive'' by mistake for 9\% of healthy students.
+
+You test positive. What are the chances you actually have the flu? Most people say ``about 90\%.'' That's wrong. Let's work it out with 1,000 students:
+
+\begin{itemize}
+  \item 10 students have the flu (1\% of 1,000). The test catches 9 of them.
+  \item 990 students are healthy. The test wrongly flags about 89 of them (9\% of 990).
+  \item So about 98 students test positive in total (9 + 89).
+  \item Of those 98, only 9 really have the flu.
+\end{itemize}
+
+Chance you have the flu, given a positive test:
+\[
+\frac{9}{98} \approx 9\%
+\]
+
+The test is good, but the flu is rare, so most positive results come from healthy people getting false alarms.
+
+\subsubsection*{The formula}
+
+Bayes' rule is just that counting written in symbols:
+\[
+P(A \mid B) = \frac{P(B \mid A) \times P(A)}{P(B)}
+\]
+
+\begin{itemize}
+  \item $P(A \mid B)$: the chance of A, given that B happened (chance of flu, given a positive test). This is what you want.
+  \item $P(B \mid A)$: the chance of B if A is true (chance of a positive test if you have the flu: 90\%).
+  \item $P(A)$: how likely A was before any evidence (1\% had the flu). This is called the \emph{prior}.
+  \item $P(B)$: how likely B is overall (about 9.8\% of everyone tests positive).
+\end{itemize}
+
+Plugging in:
+\[
+\frac{0.90 \times 0.01}{0.098} \approx 0.09 \text{, or } 9\%
+\]
+
+\subsubsection*{The takeaway}
+
+Evidence matters, but so does what you already knew. A strong clue about a rare thing can still leave the thing unlikely. Bayes' rule is how you combine both properly.
+
+\subsubsection*{Why 90\% Is Wrong}
+
+The 90\% answer feels right because it mixes up two different questions:
+
+\begin{enumerate}
+  \item \textbf{If you have the flu, how likely is a positive test?} This is 90\%. It's the test's accuracy.
+  \item \textbf{If you got a positive test, how likely is it that you have the flu?} This is what you actually want to know, and it's about 9\%.
+\end{enumerate}
+
+They sound almost the same, but they are not. The test's 90\% only describes what happens \emph{among sick people}. It says nothing about how many sick people there are in the first place.
+
+\subsubsection*{Why the second question has a different answer}
+
+Think about who ends up in the ``positive'' group. Two kinds of students are in it:
+
+\begin{itemize}
+  \item Sick students the test correctly caught: \textbf{9}
+  \item Healthy students the test wrongly flagged: \textbf{about 89}
+\end{itemize}
+
+The healthy group is huge (990 students), so even a small 9\% mistake rate produces a lot of false alarms. 9\% of 990 is far more than 90\% of 10. The false alarms simply outnumber the real catches, roughly 10 to 1.
+
+So if you pick a random student from the positive group, they are much more likely to be a healthy student with a false alarm than a sick student.
+
+\subsubsection*{An everyday comparison}
+
+Imagine a metal detector that beeps for 90\% of real knives, but also beeps by accident for 9\% of harmless things like belt buckles and keys. If only 1 in 100 people carries a knife, then almost every beep is a belt buckle. A beep is a clue, but not proof, because knives are rare to begin with.
+
+\subsubsection*{Why intuition fails}
+
+Our brains focus on the test's accuracy (the vivid, exciting number) and ignore how rare the flu is (the boring background number). This mistake is called \textbf{base rate neglect}. The ``base rate'' is how common something is before any testing, and it has a big effect on the final answer.
+
+\textbf{Quick check:} if half the school had the flu, the same positive test would be far more convincing. The test hasn't changed, only the base rate has. That is why you can't judge a test result without knowing how common the thing is.

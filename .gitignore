@@ -1,1 +1,4 @@
 build/
+.venv/
+client_secret.json
+token.json
