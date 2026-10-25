@@ -1,0 +1,386 @@
+\section{Fundamentals of Generative Models}
+
+\subsection*{Lecture Slides 4--6: Problem Setup, Three Questions, and the Task Picture}
+
+\subsubsection*{Slide 4: What Problem Are We Solving?}
+
+\textbf{The idea.} Imagine you have thousands of cat photos. Generative modeling means building a ``cat-photo machine'' that has learned what cat photos look like in general. It can then do two things:
+
+\begin{enumerate}
+  \item Tell you how believable a photo is. A real cat photo scores high, and a photo of static noise scores very low. This is called \textbf{density estimation}.
+  \item Make brand-new photos that look real but were not in your collection. This is called \textbf{sampling}.
+\end{enumerate}
+
+The same works for sentences, sounds, molecules or videos. If your data also has labels (like ``cat'' or ``dog''), the machine can learn the image and its label together.
+
+\subsubsection*{Equation 1: The Dataset}
+
+\[
+D = \{x^{(1)}, \ldots, x^{(N)}\}
+\]
+
+\begin{itemize}
+  \item \textbf{Symbols:} $D$ is your dataset. $x^{(1)}$ is the first example (say, the first photo), and $x^{(N)}$ is the last. $N$ is how many examples you have. The little number in brackets is just a position number, not a power.
+  \item \textbf{What it says:} ``Here is my pile of $N$ examples.''
+  \item \textbf{Conditions:} The slides assume the examples are drawn from the same unknown source, independently of each other. Think of each photo as pulled from a giant bag of all possible real photos.
+  \item \textbf{Special values:} If $N$ is small, the machine has little to learn from and may just memorize. As $N$ gets very large, the pile represents the real world better, and learning gets more reliable.
+\end{itemize}
+
+\subsubsection*{Equation 2: The True Rule and the Model's Guess}
+
+\[
+p_{\text{data}}(x) \qquad \text{and} \qquad p_\theta(x)
+\]
+
+\begin{itemize}
+  \item \textbf{Symbols:} $p_{\text{data}}(x)$ is the true, unknown rule for how likely each $x$ is in the real world. $p_\theta(x)$ is our machine's guess at that rule. $\theta$ (theta) stands for all the machine's adjustable knobs, such as the weights in a neural network.
+  \item \textbf{What it says:} We never see $p_{\text{data}}$. We only see examples from it. The goal is to turn the knobs $\theta$ until $p_\theta$ behaves like $p_{\text{data}}$.
+  \item \textbf{Conditions:} For a list of separate options (like pixel brightness 0--255), $p$ gives a true probability, so it is between 0 and 1. For smooth values, $p$ is a \textit{density}, and a density can be bigger than 1. Only the area under it, over a region, is a probability.
+  \item \textbf{Special values:} If $p_\theta(x) = 0$ for something that really exists, the machine is saying ``impossible'' about something real. That is the worst kind of mistake (the log of 0 is $-\infty$, which training punishes heavily). If $p_\theta(x)$ is high for realistic $x$ and tiny for nonsense, the machine is doing well.
+\end{itemize}
+
+\subsubsection*{Equation 3: Drawing a New Item}
+
+\[
+x \sim p_\theta
+\]
+
+\begin{itemize}
+  \item \textbf{Symbols:} $x$ is a new item. The wavy ``$\sim$'' means ``is drawn from.'' $p_\theta$ is our model.
+  \item \textbf{What it says:} ``Roll the machine's dice and get a new item, with more likely items showing up more often.''
+  \item \textbf{Conditions:} This only works if the model gives you some way to produce samples. Some models do this easily, others are slow.
+  \item \textbf{Special values:} Items with $p_\theta$ near 0 almost never appear. Items with high $p_\theta$ appear often.
+\end{itemize}
+
+\subsubsection*{Equation 4: Image and Label Together}
+
+\[
+p_\theta(x, y)
+\]
+
+\begin{itemize}
+  \item \textbf{Symbols:} $x$ is the item (image) and $y$ is its label.
+  \item \textbf{What it says:} ``How likely is this image \textit{together with} this label?''
+  \item \textbf{Conditions:} It needs labeled data. If you do not have labels, you drop $y$ and just model $p_\theta(x)$.
+\end{itemize}
+
+\subsubsection*{Slide 5: Three Questions Every Generative Model Answers}
+
+Every generative model tries to answer three questions about data:
+
+\begin{tabular}{@{}p{2.5cm}p{6cm}p{4cm}@{}}
+\toprule
+\textbf{Question} & \textbf{Plain meaning} & \textbf{Written as} \\
+\midrule
+1. Density & How believable is this $x$? & $p_\theta(x) = \,?$ \\
+2. Sample & How do I make a new $x$? & $x \sim p_\theta$ \\
+3. Represent & What hidden factors explain $x$? & $z$ such that $x \approx g(z)$ \\
+\bottomrule
+\end{tabular}
+
+\subsubsection*{Equation 5: Rebuilding From a Hidden Description}
+
+\[
+x \approx g(z)
+\]
+
+\begin{itemize}
+  \item \textbf{Symbols:} $x$ is the real item (like a photo). $z$ is a short hidden description of it, like a recipe card (``fluffy, orange, sitting, facing left''). $g$ is a function that turns the recipe card back into a picture. ``$\approx$'' means ``approximately equal.''
+  \item \textbf{What it says:} A complicated thing $x$ can be rebuilt, roughly, from a much shorter description $z$. Finding that $z$ gives a useful summary of $x$.
+  \item \textbf{Conditions:} It is only approximate. A short $z$ cannot hold every tiny detail, so $g(z)$ is close to $x$ but not identical.
+  \item \textbf{Special values:} If $z$ is too short, you lose important detail and the rebuilt picture is poor. If $z$ is as big as $x$ itself, nothing is summarized, so it is not very useful.
+\end{itemize}
+
+\textbf{Which questions each family can answer.} The slide's main point is that no model answers all three questions easily. Different model types make different trade-offs:
+
+\begin{itemize}
+  \item \textbf{Autoregressive models and flows:} They give an exact answer to question 1 (the exact density). Sampling is exact for flows, and for autoregressive models it happens one piece at a time.
+  \item \textbf{VAEs:} They give only a \textit{lower bound} on the density, meaning a number guaranteed not to exceed the true one. In return they give you a hidden code $z$ (question 3).
+  \item \textbf{GANs and many diffusion samplers:} They produce very good samples (question 2), but you cannot easily compute the exact $p_\theta(x)$.
+\end{itemize}
+
+``Tractable'' just means ``can be computed in a reasonable amount of time.''
+
+\subsubsection*{Slide 6: A Picture of the Task}
+
+The slide is a simple flow chart:
+
+\textbf{Dataset} $\rightarrow$ (fit $\theta$) $\rightarrow$ \textbf{Model} $p_\theta(x)$ $\rightarrow$ two outputs:
+
+\begin{itemize}
+  \item a score for any new item $x^*$, written $p_\theta(x^*)$, which is its believability (this is the density question)
+  \item a brand-new item $x_{\text{new}}$ (this is the sampling question)
+\end{itemize}
+
+\textbf{Fitting} means adjusting the knobs $\theta$ until the model's version of the world is \textit{close} to the real one. The slide says ``close'' will be made precise later using the \textbf{Kullback--Leibler divergence} (a score for how different two distributions are) and the \textbf{likelihood} (how well the model explains your data).
+
+A new item is written $x_{\text{new}}$ (or $x^*$) to keep it separate from the training examples. The point is that it was not in the dataset.
+
+\textbf{Summary of slides 4--6:} You collect examples, tune $\theta$ so the model's distribution matches the real one, and then use the model to score items, create new ones, and (in some model types) find hidden descriptions. Each model family gives up something in exchange for another.
+
+\subsection*{Random Variable, Joint, Marginal, Conditional Probability and Bayes' Rule: General Perspective}
+
+One example is used for all five ideas so they connect.
+
+\textbf{The setup.} A school has 100 students. Each one either takes the bus or walks, and each one is either late or on time on a given day. Here is the count for one day:
+
+\begin{tabular}{@{}lccc@{}}
+\toprule
+ & \textbf{Late} & \textbf{On time} & \textbf{Total} \\
+\midrule
+Bus & 10 & 40 & 50 \\
+Walk & 5 & 45 & 50 \\
+\midrule
+Total & 15 & 85 & 100 \\
+\bottomrule
+\end{tabular}
+
+\subsubsection*{Random Variable}
+
+A random variable is a way of turning ``something that happens by chance'' into a number.
+
+If you pick a student at random, you do not know in advance whether they will be late. You can make a rule: ``write 1 if the student is late, 0 if on time.'' That rule is a random variable. It stays unknown until you actually pick someone, and then it becomes a real number.
+
+A dice roll is the classic case. Before you roll, ``the number that comes up'' is a random variable. After you roll, it is just 4 or 6 or whatever you got.
+
+The reason for using numbers is that you can then count, average and calculate with them.
+
+\subsubsection*{Joint Probability}
+
+Joint probability is the chance of two things being true \textbf{at the same time}.
+
+What is the chance a random student takes the bus \textbf{and} is late? Look at the one box where both are true: 10 students out of 100, so \textbf{10\%}.
+
+Every box in the middle of the table is a joint probability:
+
+\begin{itemize}
+  \item bus and late: 10\%
+  \item bus and on time: 40\%
+  \item walk and late: 5\%
+  \item walk and on time: 45\%
+\end{itemize}
+
+Together they add up to 100\%, because every student lands in exactly one box.
+
+\subsubsection*{Marginal Probability}
+
+Marginal probability is the chance of one thing on its own, ignoring the other.
+
+What is the chance a random student is late, whether they take the bus or walk? Add up the ``late'' column: $10 + 5 = 15$ out of 100, so \textbf{15\%}.
+
+You are collapsing the table. You merge the bus and walk rows and look only at the totals. Those totals sit in the \textit{margins} of the table, which is where the name comes from.
+
+\subsubsection*{Conditional Probability}
+
+Conditional probability is the chance of something \textbf{once you already know something else is true}.
+
+Suppose I tell you the student takes the bus. What is the chance they are late? You now only care about the bus row, which has 50 students, and 10 of them are late. That gives 10 out of 50, which is \textbf{20\%}.
+
+For walkers it is 5 out of 50, or \textbf{10\%}.
+
+You are zooming in on one group and asking what is true inside it. Notice that the answer changed: 15\% overall, 20\% for bus riders, 10\% for walkers. That change tells you that taking the bus and being late are connected. If the numbers had stayed the same for every group, the two things would be unrelated.
+
+You can only zoom into a group that exists. If nobody walked, ``chance of being late given they walk'' would make no sense, since there is no group to look at.
+
+\subsubsection*{Bayes' Rule}
+
+Bayes' rule is a way to flip a question around.
+
+Here is a question you cannot answer by simply reading off the table: \textbf{``A student arrived late. What is the chance they took the bus?''}
+
+Sometimes you do not have the full table. You might only know:
+
+\begin{itemize}
+  \item Half of all students take the bus (50\%).
+  \item Bus riders are late 20\% of the time.
+  \item Students overall are late 15\% of the time.
+\end{itemize}
+
+Bayes' rule says:
+
+\[
+\text{chance of bus given late} =
+\frac{\text{chance of late given bus} \times \text{chance of bus}}
+     {\text{chance of late}}
+\]
+
+With numbers:
+
+\[
+\frac{0.20 \times 0.50}{0.15} = \frac{0.10}{0.15} \approx 0.67 = 67\%
+\]
+
+You can check this against the table. Of the 15 late students, 10 took the bus, and $10 \div 15 \approx 67\%$. It matches.
+
+\textbf{In plain words:} Start with what you believed before (half of students ride the bus). Then adjust for the new clue (this student is late), because bus riders are late more often than average. The clue pushes your belief up from 50\% to 67\%.
+
+\textbf{A common mix-up:} ``Chance of late given bus'' (20\%) and ``chance of bus given late'' (67\%) are \textit{different questions} with different answers. The first asks how many bus riders are late. The second asks how many late students ride the bus. Bayes' rule is the tool for converting one into the other.
+
+\subsubsection*{How They Fit Together}
+
+\begin{itemize}
+  \item A \textbf{random variable} turns chance outcomes into numbers.
+  \item \textbf{Joint} looks at two things together.
+  \item \textbf{Marginal} looks at one thing and ignores the rest.
+  \item \textbf{Conditional} looks at one thing inside a group you already know.
+  \item \textbf{Bayes' rule} converts ``given A, how likely is B'' into ``given B, how likely is A.''
+\end{itemize}
+
+All of them come from the same table, just read in different ways.
+
+\subsection*{Lecture Slides 7--9: Random Variables, Joint, Marginal, Conditional, and Bayes' Rule}
+
+\subsubsection*{Slide 7: Random Variables}
+
+\textbf{The idea.} A random variable is a number (or list of numbers) whose value depends on chance. Rolling a die gives a random number from 1 to 6. A pixel's brightness in a random photo is also a random variable. We write $X$ for the random thing itself, $x$ for one specific value it took, and $p(x)$ for the rule saying how likely each value is.
+
+There are two kinds, and each has its own rule.
+
+\subsubsection*{Equation 1 (Discrete)}
+
+\[
+p(x) \ge 0 \qquad \text{and} \qquad \sum_x p(x) = 1
+\]
+
+\begin{itemize}
+  \item \textbf{Symbols:} $x$ is one possible value (for example, a brightness from 0 to 255). $p(x)$ is the chance of that value. $\sum_x$ means ``add up over every possible $x$.''
+  \item \textbf{What it says:} Every chance is zero or more (no negative chances), and all the chances together add up to exactly 1, which means 100\%. Something must happen.
+  \item \textbf{Conditions:} This holds when there is a countable list of separate options, like pixel brightness $0, 1, \ldots, 255$.
+  \item \textbf{Special values:} If $p(x) = 0$, that value never happens. If $p(x) = 1$, it always happens, and then every other option must have chance 0. A single $p(x)$ can never be above 1, because the total is only 1.
+\end{itemize}
+
+\subsubsection*{Equation 2 (Continuous)}
+
+\[
+p(x) \ge 0 \qquad \text{and} \qquad \int p(x)\, dx = 1
+\]
+
+\begin{itemize}
+  \item \textbf{Symbols:} $x$ is a value on a smooth scale, like height or exact temperature. $p(x)$ is now a \textbf{density}, not a chance. $\int \ldots\, dx$ means ``add up the area under the curve, across all $x$.''
+  \item \textbf{What it says:} The curve never goes below zero, and the total area under it is 1.
+  \item \textbf{Conditions:} This holds for smooth, continuous values, where there are infinitely many possible values.
+  \item \textbf{Special values:} The slide stresses that $p(x)$ \textbf{can be bigger than 1}. Imagine all the area squeezed into a very narrow strip. The strip must be very tall to still have area 1. Only the \textit{area over a region} is a real probability, and that is always between 0 and 1. Also, $p(x)$ at a single exact point is not a probability. The chance of landing on one exact point is 0.
+\end{itemize}
+
+\subsubsection*{Slide 8: Joint, Marginal, Conditional}
+
+The example: $x$ is an image and $y$ is a label, either ``cat'' or ``dog.''
+
+\subsubsection*{Joint}
+
+\[
+p(x, y)
+\]
+
+\begin{itemize}
+  \item \textbf{Symbols:} $x$ is the image, $y$ is the label.
+  \item \textbf{What it says:} How likely is this exact image \textit{and} this exact label together?
+  \item \textbf{Conditions:} It always makes sense for two variables that live in the same world.
+  \item \textbf{Special values:} If it is 0, that image-label pair never occurs (a photo of a cat labeled ``dog,'' say).
+\end{itemize}
+
+\subsubsection*{Marginal}
+
+\[
+p(x) = \sum_y p(x, y)
+\]
+
+\begin{itemize}
+  \item \textbf{Symbols:} $p(x)$ is the chance of the image on its own. $\sum_y$ means ``add up over every label $y$.''
+  \item \textbf{What it says:} If you do not care about the label, add up the chances of the image across all labels. This is called ``summing the label away.''
+  \item \textbf{Conditions:} It holds always. For smooth variables, the sum becomes an integral.
+  \item \textbf{Special values:} If the image never appears with any label, every term is 0, so $p(x) = 0$.
+\end{itemize}
+
+\subsubsection*{Conditional}
+
+\[
+p(y \mid x) = \frac{p(x, y)}{p(x)}
+\]
+
+\begin{itemize}
+  \item \textbf{Symbols:} $p(y \mid x)$ reads ``chance of label $y$ \textit{given} we already know the image is $x$.'' The top is the joint, and the bottom is the chance of the image alone.
+  \item \textbf{What it says:} Out of all the times this image shows up, what fraction come with label $y$? You are zooming in on only the cases where $x$ happened.
+  \item \textbf{Conditions:} It only works when $p(x) > 0$. You cannot ask ``given that $x$ happened'' if $x$ can never happen.
+  \item \textbf{Special values:} If $p(x) = 0$, you would divide by zero, so it is undefined. If $p(x, y) = 0$ but $p(x) > 0$, the answer is 0. If the joint equals $p(x)$, the answer is 1, meaning that label is certain.
+\end{itemize}
+
+\subsubsection*{Product Rule}
+
+\[
+p(x, y) = p(y \mid x)\, p(x) = p(x \mid y)\, p(y)
+\]
+
+\begin{itemize}
+  \item \textbf{Symbols:} Same as above. Both right-hand sides rebuild the joint.
+  \item \textbf{What it says:} The chance of ``image and label together'' equals ``chance of the image'' times ``chance of the label given that image.'' You can also go the other way: label first, then image given label.
+  \item \textbf{Conditions:} It always holds. It is an identity, not an assumption.
+  \item \textbf{Special values:} If either piece is 0, the joint is 0.
+  \item \textbf{Why it matters:} The two versions give different kinds of models. The first path ($p(y \mid x)\, p(x)$) leads to \textit{discriminative} thinking, which predicts a label from an image. The second ($p(x \mid y)\, p(y)$) leads to \textit{generative} thinking, which picks a label and then creates an image.
+\end{itemize}
+
+\subsubsection*{Slide 9: Bayes' Rule}
+
+\textbf{The idea.} Bayes' rule lets you flip a question around. If you know ``how likely is this image if it is a dog,'' it lets you work out ``how likely is it a dog, given this image.''
+
+\subsubsection*{Equation 1: Bayes' Rule}
+
+\[
+p(y \mid x) = \frac{p(x \mid y)\, p(y)}{p(x)}
+\]
+
+\begin{itemize}
+  \item \textbf{Symbols:}
+  \begin{itemize}
+    \item $p(y)$, the \textit{prior}: your belief about the label \textit{before} seeing the image. For example, 60\% of your photos are cats.
+    \item $p(x \mid y)$, the \textit{likelihood}: how believable this image is \textit{if} the label were $y$.
+    \item $p(x)$, the \textit{evidence}: how likely this image is overall, across all labels.
+    \item $p(y \mid x)$, the \textit{posterior}: your updated belief \textit{after} seeing the image.
+  \end{itemize}
+  \item \textbf{What it says:} Start with your old belief, multiply by how well the image fits that label, then divide by a total so everything adds to 1.
+  \item \textbf{Conditions:} It needs $p(x) > 0$ (no dividing by zero). It is always true, since it comes straight from the product rule.
+  \item \textbf{Special values:}
+  \begin{itemize}
+    \item If the prior $p(y) = 0$, the posterior is 0. A label you ruled out stays ruled out, no matter what the image looks like.
+    \item If the likelihood $p(x \mid y) = 0$, the posterior is 0. The image is impossible under that label.
+    \item If the prior is the same for all labels, the image evidence decides everything.
+  \end{itemize}
+\end{itemize}
+
+\subsubsection*{Equation 2: Evidence}
+
+\[
+p(x) = \sum_y p(x \mid y)\, p(y)
+\]
+
+\begin{itemize}
+  \item \textbf{Symbols:} Add up ($\sum_y$), over every label, the likelihood times the prior.
+  \item \textbf{What it says:} The overall chance of an image is built from its chance under each label, weighted by how common each label is. It is the ``shrink-to-fit'' number that makes the posteriors add to 1.
+  \item \textbf{Conditions:} It holds for any complete set of labels (here, cat and dog).
+  \item \textbf{Special values:} If it is 0, the image cannot occur and Bayes' rule is undefined.
+\end{itemize}
+
+\subsubsection*{Quick Example}
+
+Say 60\% of your photos are cats and 40\% are dogs. An image with floppy ears has $p(x \mid \text{cat}) = 0.1$ and $p(x \mid \text{dog}) = 0.5$.
+
+\begin{itemize}
+  \item Cat: $0.1 \times 0.6 = 0.06$
+  \item Dog: $0.5 \times 0.4 = 0.20$
+  \item Evidence: $0.06 + 0.20 = 0.26$
+  \item Posterior: dog $= 0.20 / 0.26 \approx \mathbf{0.77}$, cat $= 0.06 / 0.26 \approx \mathbf{0.23}$
+\end{itemize}
+
+So the floppy ears move you from a 40\% dog belief to about 77\%.
+
+\subsubsection*{The Diagram: $y \rightarrow x$}
+
+The arrow shows the \textit{sampling direction}. A generative model picks a label from the prior, then draws an image from $p(x \mid y)$. The posterior $p(y \mid x)$ goes \textit{against} the arrow, and that is the answer a classifier wants.
+
+\textbf{Summary of slides 7--9:}
+
+\begin{itemize}
+  \item Random variables come in two types: chances for separate values and densities for smooth values.
+  \item Joint, marginal and conditional are three ways to look at the same pair of variables.
+  \item Bayes' rule flips a conditional around, which is how a generative model can be used to classify.
+\end{itemize}
