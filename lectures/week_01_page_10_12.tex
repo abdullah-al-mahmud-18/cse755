@@ -1,0 +1,338 @@
+\subsection*{Page 10: Independence and the i.i.d. Assumption}
+
+This page has three ideas, each with one equation: independence, conditional independence, and i.i.d. data. It sets up the rule that lets us write a whole dataset's probability as a simple product.
+
+\subsubsection*{Independence}
+
+\textbf{Idea:} Two things are independent if knowing one tells you nothing about the other. Example: flipping a coin and rolling a die. The coin result does not change the die's odds.
+
+\textbf{Equation:}
+\[
+p(x, y) = p(x)\,p(y), \qquad \text{equivalently} \qquad p(x \mid y) = p(x)
+\]
+
+\textbf{Symbols:}
+\begin{itemize}
+  \item $X$ and $Y$ are two random quantities (things that can come out different ways).
+  \item $x$ and $y$ are specific values they might take.
+  \item $p(x, y)$ is the chance that $X = x$ and $Y = y$ at the same time.
+  \item $p(x)$ and $p(y)$ are the chances of each one on its own.
+  \item $p(x \mid y)$ is the chance of $x$ once you already know $y$. The bar ``$\mid$'' means ``given''.
+\end{itemize}
+
+\textbf{What it says:} The chance of both happening equals the chance of one times the chance of the other. Example: coin heads ($1/2$) and die shows 6 ($1/6$) gives $1/12$ for both. The second form says the same thing: learning $y$ does not change your odds for $x$.
+
+\textbf{When it holds:} Only when the two really do not influence each other. It is an assumption you make or a fact you check, not something true by default. The ``equivalently'' part needs $p(y) > 0$, because you cannot say ``given $y$'' about something that never happens.
+
+\textbf{Special values:} If $p(x) = 0$ ($x$ can never happen), then $p(x, y) = 0$ as well, which is consistent. If either probability is 1, the equation just gives the other one back.
+
+\subsubsection*{Conditional Independence}
+
+\textbf{Idea:} Two things can be linked in general, but become unrelated once you know a third thing. Example: ice cream sales and sunburns both rise on hot days, so they look connected. But if you already know the weather ($Z$), ice cream sales tell you nothing more about sunburns. The weather was the shared cause.
+
+\textbf{Equation:}
+\[
+X \perp Y \mid Z \quad \text{means} \quad p(x, y \mid z) = p(x \mid z)\,p(y \mid z)
+\]
+
+\textbf{Symbols:}
+\begin{itemize}
+  \item $X \perp Y \mid Z$ reads ``$X$ is independent of $Y$, given $Z$''.
+  \item $z$ is the value of the third quantity we already know.
+  \item $p(x, y \mid z)$ is the chance of $x$ and $y$ together, given $z$.
+  \item $p(x \mid z)$ and $p(y \mid z)$ are the separate chances, each given $z$.
+\end{itemize}
+
+\textbf{What it says:} It is the same product rule as before, but every term is computed inside the world where $z$ is already known.
+
+\textbf{When it holds:} Only when $Z$ fully explains the link between $X$ and $Y$. It needs $p(z) > 0$.
+
+\subsubsection*{Independent Given Z Versus Independent Overall}
+
+Independent given $Z$ does \textbf{not} mean independent overall (this is mistake number 5 in the hand notes). This matters later because latent variables (hidden causes like $Z$) are how models explain why pixels in one image depend on each other.
+
+\textbf{Independent given $Z$} means: if you already know the weather, then ice cream sales and sunburns have nothing more to say about each other.
+
+\textbf{Independent overall} means: even if you know nothing about the weather, knowing one of the two tells you nothing about the other.
+
+The first does not guarantee the second. Picture two kinds of days.
+\begin{itemize}
+  \item \textbf{Hot days:} lots of ice cream sold, lots of sunburns.
+  \item \textbf{Cold days:} little ice cream sold, few sunburns.
+\end{itemize}
+
+Once you tell me ``it is a hot day'', ice cream sales do not help me predict sunburns any better. The heat already explains both. The same is true on a cold day. So \textbf{given the weather, they are unrelated.}
+
+Now forget the weather. I tell you, ``Ice cream sales were huge today.'' You would guess it was probably hot, so you would also guess there were lots of sunburns. Knowing one helped you predict the other. So \textbf{overall, they are connected.}
+
+``Ignoring the weather'' means you pool all the days together, hot and cold. Hot days bring high sales and high sunburns, and cold days bring low sales and low sunburns. So across all days, high sales and high sunburns tend to show up together. That is the connection.
+
+Think of $Z$ as a hidden middleman. It makes the two things move together, so they look related from outside. Once you look inside one weather type, the link disappears.
+
+\textbf{Checking against the definitions.} The definition of ``independent overall'' says that, with no weather information, knowing one thing tells you nothing about the other. The ice cream example fails that test, so ice cream sales and sunburns are \textbf{not} independent overall.
+
+\begin{tabular}{@{}p{5.2cm}p{5.2cm}p{5.2cm}@{}}
+\toprule
+Situation & Does knowing one help guess the other? & Verdict \\
+\midrule
+Coin and die & No & Independent overall \\
+Ice cream and sunburns, weather unknown & Yes & \textbf{Not} independent overall \\
+Ice cream and sunburns, weather known & No & Independent \textbf{given the weather} \\
+\bottomrule
+\end{tabular}
+
+The bottom two rows are the point of the lesson. The same pair can be connected when you do not know $Z$ and unconnected once you do.
+
+\textbf{Why this can sound contradictory.} The sentence ``independent overall means no connection'' is the rule, and the later sentence ``overall, they are connected'' says the example breaks the rule. Both are true.
+
+\textbf{Why it matters for images.} In a photo, neighboring pixels are related. If one pixel is blue sky, the one beside it is probably blue too. A generative model explains this using a hidden cause, like the weather in the example. Maybe the hidden cause is ``this photo is of a beach at noon''. Given that, each pixel is easy to describe on its own. But since all the pixels share the same hidden cause, they end up connected when you do not know the cause.
+
+This hidden cause is called a \textbf{latent variable} ($Z$). ``Latent'' just means hidden. The model never sees $Z$ in the training data. It invents one and uses it to explain why pixels move together.
+
+\textbf{In one sentence:} Things can look connected only because they share a hidden cause. Once you know the cause, the connection disappears, and generative models use this trick to explain why the pixels in an image depend on each other.
+
+\subsubsection*{i.i.d. Data}
+
+\textbf{Idea:} i.i.d. means ``independent and identically distributed''. It describes how we assume the training data was collected.
+
+\textbf{Equation:}
+\[
+p(\mathcal{D} \mid \theta) = \prod_{n=1}^{N} p\bigl(x^{(n)} \mid \theta\bigr)
+\]
+
+\textbf{Symbols:}
+\begin{itemize}
+  \item $\mathcal{D}$ is the whole dataset.
+  \item $\theta$ (theta) is the model's settings or knobs, the numbers we tune.
+  \item $N$ is how many data points there are.
+  \item $x^{(n)}$ is the $n$-th data point. The small raised $(n)$ is a label saying which point, not a power.
+  \item $p(\mathcal{D} \mid \theta)$ is the chance of seeing this entire dataset, given the settings $\theta$.
+  \item The big $\prod$ means ``multiply all of these together'', from point 1 up to point $N$.
+\end{itemize}
+
+\textbf{What it says:} The chance of the whole dataset is the chance of point 1, times the chance of point 2, and so on. Two assumptions are packed in:
+\begin{itemize}
+  \item \textbf{Identical:} every point comes from the same model with the same $\theta$. One set of knobs for everyone.
+  \item \textbf{Independent:} the points do not affect each other, so multiplying is allowed. This is the same product rule from independence, applied $N$ times.
+\end{itemize}
+
+\textbf{When it holds:} When each data point is collected separately and fairly, like photos shuffled from one big collection. It fails if points are linked, such as consecutive frames of a video, or if data comes from different sources with different $\theta$.
+
+\textbf{Special values:}
+\begin{itemize}
+  \item $N = 1$: the product is just one term.
+  \item Any single factor is 0: the whole product becomes 0. One impossible point makes the entire dataset impossible under that $\theta$.
+  \item $N$ very large: you multiply many numbers smaller than 1, so the result shrinks toward 0 and gets too tiny for a computer to store (underflow). This is exactly why page 11 switches to logarithms, which turn the product into a sum.
+\end{itemize}
+
+\textbf{The last sentence of the page.} ``Pixels inside one image are not independent.'' Independence is assumed \emph{between} different images (point $n$ versus point $m$), not \emph{inside} one image. Neighboring pixels in a photo are strongly related: if one is blue sky, its neighbor probably is too. If pixels were independent, an image would look like random static. Capturing that pixel-to-pixel dependence is the real challenge, and that is the job of a generative model.
+
+\subsection*{Likelihood and Maximum Likelihood Estimation: General Perspective}
+
+\subsubsection*{Probability Versus Likelihood}
+
+Imagine a coin with an unknown chance of heads, called $\theta$.
+
+\begin{itemize}
+  \item \textbf{Probability} starts with the rule and asks about results. ``The coin is fair ($\theta = 0.5$). How likely is it to get 7 heads in 10 flips?'' The rule is known and the results are the question.
+  \item \textbf{Likelihood} starts with the results and asks about the rule. ``I flipped 10 times and got 7 heads. How believable is $\theta = 0.5$? What about $\theta = 0.7$?'' The results are known and the rule is the question.
+\end{itemize}
+
+Both use the same formula, but you look at it from opposite sides.
+
+\textbf{In one sentence:} Probability asks, ``Given the rules, what will I see?'' Likelihood asks, ``Given what I saw, how well does this set of rules fit?''
+
+\subsubsection*{A Worked Example}
+
+Say you saw one specific sequence with 7 heads and 3 tails. Its chance under a coin with heads-chance $\theta$ is
+\[
+\theta^{7}(1 - \theta)^{3},
+\]
+and that is the likelihood of $\theta$.
+
+\begin{itemize}
+  \item $\theta = 0.5$ gives $0.5^{10} \approx 0.00098$.
+  \item $\theta = 0.7$ gives $0.7^{7} \times 0.3^{3} \approx 0.00222$.
+\end{itemize}
+
+$\theta = 0.7$ explains the data about 2.3 times better, so it is the more believable setting. Likelihood does not behave like probability across $\theta$. If you add up the likelihood over all possible $\theta$ values, you do not get 1. It is only a score for comparing settings.
+
+\subsubsection*{Maximum Likelihood Estimation (MLE)}
+
+MLE says: try every setting $\theta$ and pick the one that makes the data we saw most likely. Here that is $\theta = 7/10 = 0.7$. It is a way of letting the data choose the settings.
+
+\subsubsection*{Why We Use Logarithms}
+
+With 1,000 data points, you multiply 1,000 small numbers. If each is about 0.1, the result is $10^{-1000}$, which is too tiny for a computer to store, so it rounds to 0. Taking the log turns multiplication into addition, and the numbers stay manageable (about $-2303$). Because log never reverses order (bigger stays bigger), the best $\theta$ stays the same.
+
+\subsection*{Page 11: Likelihood Is a Function of the Parameters}
+
+\subsubsection*{The Two Boxes}
+
+\begin{itemize}
+  \item \textbf{Probability box:} $\theta$ is fixed and $x$ (the data) varies. $p(x \mid \theta)$ is a distribution over possible data.
+  \item \textbf{Likelihood box:} the data is fixed and $\theta$ varies. $L(\theta) = p(\mathcal{D} \mid \theta)$.
+\end{itemize}
+
+\textbf{Symbols:}
+\begin{itemize}
+  \item $x$ is one possible data point (for us, maybe an image).
+  \item $\theta$ is the model's settings, the knobs we tune.
+  \item $\mathcal{D}$ is the full training dataset.
+  \item $p(x \mid \theta)$ is the chance of $x$, given the knob settings $\theta$.
+  \item $L(\theta)$ is the likelihood, a score for each knob setting.
+\end{itemize}
+
+\textbf{What it says:} Same formula, different viewpoint. With $\theta$ fixed, adding up $p(x \mid \theta)$ over all possible $x$ gives 1. With the data fixed, $L(\theta)$ is just a score and does not add up to 1. It only becomes a real probability over $\theta$ if you add a prior, meaning a starting belief about $\theta$ before seeing data (that is the Bayes' rule setup from page 9).
+
+\textbf{Special values:} If $L(\theta) = 0$, those settings make your data impossible. In the coin example, $\theta = 1$ (always heads) gives likelihood 0 if you saw even one tail.
+
+\subsubsection*{Probability Versus Likelihood from a Generative Model's Perspective}
+
+\textbf{The setup.} A generative model is an \textbf{image-making machine} with knobs. The knobs are $\theta$ (in real models, millions of numbers inside a neural network). Turn the knobs and the machine makes different kinds of images.
+
+Toy machine: it draws a strip of 4 pixels, and each pixel comes out white with chance $\theta$, otherwise black. The only knob is $\theta$.
+
+\textbf{Probability: knobs fixed, images vary.} ``The knob is set to $\theta = 0.75$. How likely is it that the machine makes this image?''
+\begin{itemize}
+  \item White-white-white-black: $0.75 \times 0.75 \times 0.75 \times 0.25 \approx 0.105$
+  \item All four white: $0.75^{4} \approx 0.316$
+\end{itemize}
+
+Here the machine is fixed and you ask about the images it might produce. If you add up the chances of all 16 possible strips, you get exactly 1, because the machine must make something. Probability is about \textbf{what the machine will make}.
+
+\textbf{Likelihood: images fixed, knobs vary.} Now flip it. You have real training images and do not know the right knob setting. Say your training set has 2 images: WWWB and WWBW (6 white pixels out of 8).
+
+You ask: ``For each possible knob setting, how likely is it that the machine would have made \textbf{these exact images}?'' The formula is $\theta^{6}(1 - \theta)^{2}$.
+
+\begin{tabular}{@{}cc@{}}
+\toprule
+Knob setting $\theta$ & Score for the training images \\
+\midrule
+0.25 & 0.00014 \\
+0.50 & 0.0039 \\
+0.75 & \textbf{0.0111} \\
+\bottomrule
+\end{tabular}
+
+Here the images are fixed and you compare knob settings. Adding the scores across all possible $\theta$ does \textbf{not} give 1. They are only scores for comparing settings. Likelihood is about \textbf{how well a knob setting explains the data you have}.
+
+\textbf{How the two connect.} It is the same formula, $p(\text{images} \mid \theta)$, read in two ways:
+\begin{itemize}
+  \item \textbf{Probability:} hold $\theta$ fixed, vary the images.
+  \item \textbf{Likelihood:} hold the images fixed, vary $\theta$.
+\end{itemize}
+
+\textbf{Where training comes in.} Training a generative model means: take the real training images (fixed) and keep adjusting the knobs until the likelihood is as high as possible. In the toy machine that lands on $\theta = 0.75$, which is just 6 white pixels out of 8.
+
+A trained model then switches to the probability view. With knobs frozen, it can \textbf{generate} new images (what will the machine make?) or \textbf{score} an image (how likely is this one?).
+
+\textbf{One line:} Likelihood is how you \emph{train} the machine (fix the data, adjust the knobs). Probability is how you \emph{use} it (fix the knobs, produce or score images).
+
+\subsubsection*{The i.i.d. Likelihood and Log-Likelihood Equations}
+
+\textbf{Equations:}
+\begin{align*}
+L(\theta) &= \prod_{n=1}^{N} p\bigl(x^{(n)} \mid \theta\bigr), \\
+\ell(\theta) &= \log L(\theta) = \sum_{n=1}^{N} \log p\bigl(x^{(n)} \mid \theta\bigr)
+\end{align*}
+
+\textbf{Symbols:}
+\begin{itemize}
+  \item $N$ is the number of data points, and $x^{(n)}$ is the $n$-th one.
+  \item $\prod$ means multiply all the terms, and $\sum$ means add all the terms.
+  \item $\ell$ (curly ``l'') is the log-likelihood.
+  \item $\log$ is the natural logarithm.
+\end{itemize}
+
+\textbf{What it says:} The likelihood of the whole dataset is the product of each point's chance. Taking the log changes the product into a sum.
+
+\textbf{When it holds:} The product form needs the i.i.d. assumption from page 10: independent points and one shared $\theta$. Without it you cannot split the dataset into separate multiplied pieces.
+
+\textbf{Special values:}
+\begin{itemize}
+  \item If any single point has $p = 0$, the product is 0, and its log is $-\infty$. One impossible point ruins the whole score.
+  \item For discrete data (like pixel values 0 to 255), each $p$ is between 0 and 1, so each log is zero or negative. A $p$ of 1 gives $\log = 0$, and $p$ near 0 gives a very large negative number.
+  \item For continuous data, $p$ is a density and can exceed 1 (page 7), so a log term can be positive.
+  \item As $N$ grows, the product shrinks toward 0 and $\ell$ becomes a larger and larger negative number. That is why people often divide by $N$.
+\end{itemize}
+
+\textbf{Slide's reason:} ``Products of probabilities underflow, and log is strictly increasing.'' Underflow means the number gets too tiny to store. Strictly increasing means a bigger $L$ always gives a bigger $\log L$, so the same $\theta$ wins.
+
+\textbf{Generative angle:} Here $p(x \mid \theta)$ is the generative model. The likelihood answers: ``If my model were the true source of images, how surprised would it be by the training set?'' High likelihood means the training images look typical to the model.
+
+\subsection*{Page 12: Maximum Likelihood Estimation}
+
+\subsubsection*{The MLE Equation}
+
+\textbf{Equation:}
+\[
+\hat{\theta}_{\mathrm{ML}} = \arg\max_{\theta}\, \ell(\theta) = \arg\max_{\theta} \sum_{n=1}^{N} \log p\bigl(x^{(n)} \mid \theta\bigr)
+\]
+
+\textbf{Symbols:}
+\begin{itemize}
+  \item $\hat{\theta}$ (theta-hat) is our best-guess settings. The hat means ``estimated from data''.
+  \item $\arg\max_{\theta}$ means ``the $\theta$ that makes what follows biggest''. It returns the setting, not the score.
+  \item The rest is the log-likelihood from page 11.
+\end{itemize}
+
+\textbf{What it says:} Try all knob settings and keep the one that gives the training data the highest score.
+
+\textbf{When it holds / caveats:}
+\begin{itemize}
+  \item The best setting must exist. For simple models there is one clear peak.
+  \item For deep neural networks there are many peaks, so training (gradient descent) usually finds a good one, not necessarily the best one.
+  \item With very little data, MLE can overfit, locking onto quirks of those few points.
+\end{itemize}
+
+\textbf{Special values:} For the coin, MLE gives $N_1/N$. If you saw 0 heads in 5 flips, $\hat{\theta} = 0$, so the model declares heads impossible. That is a known weakness.
+
+\textbf{Generative angle:} Training a generative model means adjusting its knobs (for example, a neural network's weights) so the real training images become as likely as possible under the model.
+
+\subsubsection*{Why This Objective: The KL Equation}
+
+\textbf{Equation:}
+\[
+\mathbb{E}_{p_{\mathrm{data}}}\bigl[\log p_{\theta}(x)\bigr] = -H(p_{\mathrm{data}}) - \mathrm{KL}\bigl(p_{\mathrm{data}} \,\|\, p_{\theta}\bigr)
+\]
+
+\textbf{Symbols:}
+\begin{itemize}
+  \item $p_{\mathrm{data}}$ is the true, unknown process that made the real data.
+  \item $p_{\theta}$ is our model's version.
+  \item $\mathbb{E}_{p_{\mathrm{data}}}$ means ``the average over data drawn from the real world''.
+  \item $\log p_{\theta}(x)$ is the log-score our model gives to a real example $x$.
+  \item $H(p_{\mathrm{data}})$ is entropy, a measure of how unpredictable the real data is. It depends only on the real world, not on our model.
+  \item $\mathrm{KL}(p_{\mathrm{data}} \,\|\, p_{\theta})$ is the Kullback--Leibler divergence, a score for how different our model is from reality. It is zero only if they match exactly and positive otherwise.
+\end{itemize}
+
+\textbf{What it says:} The average score our model earns on real data equals a fixed number minus the gap between model and reality. Since the fixed number cannot be changed, raising the score means shrinking the gap. So maximum likelihood is the same as making the model as close to reality as possible, measured by KL.
+
+\textbf{Link to the sum:} We cannot average over the true world, but the average over our $N$ training points,
+\[
+\frac{1}{N} \sum_{n=1}^{N} \log p_{\theta}\bigl(x^{(n)}\bigr),
+\]
+is a stand-in for it. That connects page 11's sum to this equation.
+
+\textbf{When it holds:} It is an exact identity when both are valid distributions. KL is finite only if the model gives nonzero chance everywhere real data can occur.
+
+\textbf{Special values:}
+\begin{itemize}
+  \item $\mathrm{KL} = 0$: perfect match.
+  \item Model chance $\to 0$ on something real data does produce: $\log \to -\infty$, so $\mathrm{KL} \to \infty$. The model is punished severely for calling real things impossible.
+  \item A low-entropy (very predictable) world means a higher best-possible score.
+\end{itemize}
+
+\subsubsection*{Direction of KL Matters}
+
+KL is not symmetric. $\mathrm{KL}(p_{\mathrm{data}} \,\|\, p_{\theta})$ and $\mathrm{KL}(p_{\theta} \,\|\, p_{\mathrm{data}})$ are different scores.
+
+Imagine real data has two clusters: cat photos and dog photos.
+
+\begin{itemize}
+  \item $\mathrm{KL}(p_{\mathrm{data}} \,\|\, p_{\theta})$ (\textbf{what MLE minimizes}): The model is punished heavily if it gives almost no chance to something real. Missing the dogs is very costly, so the model spreads out to cover \textbf{both} clusters. This is ``mode covering'' (a mode is a peak or cluster). The downside is that spreading wide can put some mass in between, on things that look like neither, which can cause blurry or odd samples.
+  \item \textbf{Reverse} $\mathrm{KL}(p_{\theta} \,\|\, p_{\mathrm{data}})$: The model is punished for putting chance where no real data exists. It can safely focus on just the cats and ignore the dogs. This is ``mode seeking''. Its samples tend to look cleaner but miss variety.
+\end{itemize}
+
+\textbf{Generative angle:} This explains the trade-offs among model families later. Likelihood-trained models tend to cover all the variety, and some variational methods lean toward the reverse behavior.
