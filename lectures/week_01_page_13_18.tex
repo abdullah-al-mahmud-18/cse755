@@ -1,0 +1,133 @@
+\subsection*{Worked Example: Bernoulli MLE}
+
+\textbf{The setup.} You flip a coin $N$ times and record 1 for heads and 0 for tails. You do not know the coin's bias, so you give it a name, $\theta$ (the chance of heads). The question: which $\theta$ best explains the flips you saw?
+
+\textbf{Step 1: score each $\theta$.} If you saw $N_1$ heads and $N_0$ tails, the chance of that exact sequence is $\theta$ multiplied $N_1$ times, times $(1-\theta)$ multiplied $N_0$ times. Taking the log turns this product into a sum:
+\[
+\ell(\theta) = N_1 \log \theta + N_0 \log(1-\theta)
+\]
+This score is high when $\theta$ makes your data look likely and low when it does not.
+
+\textbf{Step 2: find the $\theta$ with the highest score.} Calculus finds the peak: the slope of the score is zero at the top of the hill. Setting the slope to zero gives
+\[
+\frac{N_1}{\theta} = \frac{N_0}{1-\theta},
+\]
+which simplifies to
+\[
+\hat{\theta} = \frac{N_1}{N}.
+\]
+
+\textbf{Step 3: confirm it is a peak, not a valley.} The second derivative is negative everywhere between 0 and 1. That means the curve bends downward, so the point you found is a maximum.
+
+\textbf{What it means.} The best guess for the coin's bias is the fraction of heads you saw. With 7 heads in 10 flips, $\hat{\theta} = 0.7$. You can check that it beats alternatives: $0.7^7 \times 0.3^3 \approx 0.0022$, while a fair coin gives $0.5^{10} \approx 0.001$.
+
+\textbf{Why the notes include it.} Here the best answer comes out as a one-line formula. In deep generative models, the goal is the same (pick the parameters that make the training data most likely), but $\log p_\theta(x)$ is too complicated for a formula. You have to improve it step by step with gradient descent, replace it with an easier-to-compute lower bound, or drop the idea entirely (GANs).
+
+\subsection*{What a Density Is Good For}
+
+Once your model gives a number $p_\theta(x)$ for how likely any $x$ is, you can use it for four things.
+
+\textbf{1. Compression.} Likely things can be written with short codes, and unlikely things need long ones. An item with probability $p$ needs about $-\log_2 p$ bits. Image papers report \emph{bits per dimension}: the total bits for an image divided by the number of values in it (height $\times$ width $\times$ 3 for an RGB image). A model that knows nothing treats all 256 values per pixel channel as equally likely, which costs 8 bits each. A useful model must beat 8, because it has learned that images have structure (neighboring pixels are similar, for instance). Lower is better.
+
+\textbf{2. Filling in missing parts.} If the model understands how all the pieces of $x$ relate, you can fix some pieces (the pixels you can see) and ask what the rest probably looks like. That is how you patch a hole in an image or guess a missing word.
+
+\textbf{3. Spotting oddballs.} If an input gets a very low $p_\theta(x)$, it is probably unusual, so you can flag it. The notes warn that this is unreliable for high-dimensional data like images: some strange inputs still get high scores. Treat it as a hint, not proof.
+
+\textbf{4. Classifying with Bayes' rule.} If you have a model of what each class looks like, $p(x \mid y)$, and how common each class is, $p(y)$, you can ask which class most likely produced a new input. That gives you a classifier from a generative model.
+
+\subsection*{Likely and Unlikely Things in Compression}
+
+By ``likely'' we mean things the model gives a high probability, and ``unlikely'' means things it gives a low probability.
+
+\textbf{The idea behind it.} Think of Morse code. The letter ``E'' is very common in English, so it gets a very short code (a single dot). The letter ``Q'' is rare, so it gets a longer one. Overall, messages get shorter because the frequent stuff is cheap and only the rare stuff is expensive.
+
+Compression with a probability model works the same way. For an item $x$ that the model gives probability $p(x)$, the best possible code length is about $-\log_2 p(x)$ bits:
+\begin{itemize}
+  \item $p(x) = 1/2$ gives 1 bit
+  \item $p(x) = 1/8$ gives 3 bits
+  \item $p(x) = 1/1024$ gives 10 bits
+\end{itemize}
+So higher probability means a shorter code, and lower probability means a longer one.
+
+\textbf{In the image setting.} The ``things'' are whole images (or individual pixel values). A model that has learned what images typically look like gives high probability to realistic ones, such as smooth sky or a plausible face, and very low probability to random static. Realistic images then get short codes, and noise gets a long code.
+
+\textbf{Why the 8-bit baseline matters.} A model that knows nothing treats every pixel value from 0 to 255 as equally likely, so each has probability $1/256$, which costs $\log_2 256 = 8$ bits. A good model does better because it has learned that some values are much more probable than others given the surrounding pixels. That is why a lower bits-per-dimension number means a better density model.
+
+\textbf{A note on precision.} For continuous data, the density value itself is not a probability, so in practice the pixels are treated as discrete (0 to 255) when computing bits per dimension.
+
+\subsection*{Generative and Discriminative Models}
+
+\subsubsection*{The starting point: one joint, two ways to split it}
+
+Take an image $x$ and a label $y$ (cat or dog). The product rule says the joint probability can be split in two equally valid ways:
+\[
+p(x, y) = p(y \mid x)\, p(x) = p(x \mid y)\, p(y)
+\]
+Both are true. The difference is which pieces you choose to learn.
+
+\subsubsection*{Discriminative model}
+
+It learns only $p(y \mid x)$: given an image, how likely is each label? Logistic regression and a ResNet classifier are examples.
+
+The model's whole job is to answer ``which label?'', so it never learns how images are produced. That means it \textbf{cannot draw a new image}. It can look at an image and name it, but not create one.
+
+\subsubsection*{Generative model}
+
+It learns $p(x)$, or $p(x \mid y)$ together with $p(y)$, or the full joint $p(x, y)$. PixelCNN, language models, VAEs and diffusion models are examples.
+
+Because it models how the data itself looks, you can draw new samples from it. The notes say that sampling is part of the definition, even if it is slow or inconvenient.
+
+\subsubsection*{The arrows diagram}
+
+The arrows show the direction in which data is \emph{produced}:
+\begin{itemize}
+  \item \textbf{Discriminative:} image $\to$ label. It reads an image and outputs a label.
+  \item \textbf{Generative:} label $\to$ image. It picks a label, then generates an image that fits it. An unconditional generative model skips the label and just draws an image directly.
+\end{itemize}
+
+\subsubsection*{The comparison table}
+
+\begin{center}
+\begin{tabular}{p{3.6cm} p{6.2cm} p{6.2cm}}
+\toprule
+ & Discriminative & Generative \\
+\midrule
+What it learns & $p(y \mid x)$ & $p(x)$ or $p(x, y)$ \\
+Can create new $x$? & No & Yes \\
+Missing pixels & Needs a separate model & Fill them in using the joint \\
+Difficulty of the job & Only has to explain the label & Has to explain all of $x$ \\
+Typical failure & Confidently wrong on inputs unlike its training data & Blurry output, missing some kinds of data, slow sampling \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+The ``difficulty'' row is the key one. Predicting a label is a small job. Explaining every pixel of an image is a huge one.
+
+\subsubsection*{The Ng and Jordan (2001) result}
+
+This was a comparison on classification only:
+\begin{itemize}
+  \item With \textbf{lots of data}, a discriminative classifier eventually reaches a \textbf{lower error}.
+  \item With \textbf{little data}, a generative classifier often gets to \emph{its} best performance sooner, because it also learns the structure of what each class looks like. But its best performance can be worse.
+\end{itemize}
+So the notes make the point that being generative is not about classifying better. You choose it when you want \textbf{samples, densities, or a learned representation}.
+
+\subsubsection*{Generative classification: the classic recipe}
+
+A generative model can still classify. Learn $p(y)$ (how common each class is) and $p(x \mid y)$ (what each class looks like), then pick:
+\[
+\hat{y} = \arg\max_{y}\; p(x \mid y)\, p(y)
+\]
+In words: for a new input, ask for each class ``how well does this look like that class, and how common is that class?'', then pick the class with the highest score. (This is Bayes' rule with the denominator dropped, since $p(x)$ is the same for every class and does not change which one wins.)
+
+If each class is modeled as a bell-shaped cloud (a Gaussian):
+\begin{itemize}
+  \item \textbf{Same cloud shape for all classes} gives straight-line decision boundaries. This is \textbf{LDA}.
+  \item \textbf{Each class gets its own shape} gives curved boundaries. This is \textbf{QDA}.
+\end{itemize}
+
+Deep generative models keep this same idea but make two swaps:
+\begin{enumerate}
+  \item Replace the simple Gaussian with a neural network that can model far more complex shapes.
+  \item Replace the discrete label $y$ with a continuous hidden variable $z$.
+\end{enumerate}
