@@ -1,0 +1,349 @@
+\documentclass[11pt]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,amssymb,booktabs}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{6pt}
+
+\title{CSE 755: Generative Models\\Homework 1 --- Solutions with Hints}
+\author{Fall 2026}
+\date{}
+
+\begin{document}
+\maketitle
+
+How to use this file: for each part, read the question, try it, then read one hint at a time. Only read the solution after you have tried.
+
+%==================================================
+\section*{Problem 1. Joint, marginal, conditional}
+
+\subsection*{Problem 1.1}
+\textbf{Question.} Write the product rule in both directions for $p(\mathbf{x}, y)$.
+
+\textbf{Hint 1.} The joint can be split by deciding which of the two variables you ``pick first''.
+
+\textbf{Solution.}
+\[
+p(\mathbf{x}, y) = p(y \mid \mathbf{x})\, p(\mathbf{x}) = p(\mathbf{x} \mid y)\, p(y).
+\]
+
+\textbf{Explanation.} Think of a text-to-image style model with three image classes. The chance of seeing ``this image together with this label'' can be built two ways. Way one: first produce the image, then ask how likely each label is for it, $p(y \mid \mathbf{x})\,p(\mathbf{x})$. Way two: first pick a class (say class 2), then paint an image of that class, $p(\mathbf{x} \mid y)\,p(y)$. Both give the same number. The second order is the one a generative model follows when it creates images: choose the class, then render pixels.
+
+\textbf{Reference.} Product rule; Lecture 1 slide 8; Hand notes Section 2 (Joint, marginal, conditional).
+
+%--------------------------------------------------
+\subsection*{Problem 1.2}
+\textbf{Question.} Express the marginal $p(\mathbf{x})$ as a sum involving the class-conditional densities and the prior $p(y)$.
+
+\textbf{Hint 1.} The marginal removes $y$ by summing the joint over every possible value of $y$.
+
+\textbf{Hint 2.} Replace the joint inside that sum with the generative factorization from 1.1.
+
+\textbf{Solution.}
+\[
+p(\mathbf{x}) = \sum_{y=1}^{3} p(\mathbf{x}, y) = \sum_{y=1}^{3} p(\mathbf{x} \mid y)\, p(y)
+= p(\mathbf{x}\mid 1)p(1) + p(\mathbf{x}\mid 2)p(2) + p(\mathbf{x}\mid 3)p(3).
+\]
+
+\textbf{Explanation.} Suppose an image generator can produce three kinds of pictures. To ask ``how likely is this image overall, ignoring its class?'', add up three contributions: how likely the image is if it came from class 1, weighted by how often class 1 is chosen, and the same for classes 2 and 3. Each $p(\mathbf{x}\mid y)$ is the class-conditional density (``how class-$y$ images look''), and each $p(y)$ is the prior (``how often the model picks class $y$'').
+
+\textbf{Reference.} Marginalization (sum rule) and evidence in Bayes' rule; Lecture 1 slides 8--9; Hand notes Section 2.
+
+%--------------------------------------------------
+\subsection*{Problem 1.3}
+\textbf{Question.} A model is trained only to output $p(y \mid \mathbf{x})$. Which of these can it answer: (i) the most likely label of a new image; (ii) a draw of a new image from class $y=2$; (iii) $p(\mathbf{x})$?
+
+\textbf{Hint 1.} List what the model contains: only a rule that reads an image and returns label probabilities.
+
+\textbf{Hint 2.} Producing an image needs $p(\mathbf{x}\mid y)$; scoring an image needs $p(\mathbf{x})$. Can either be recovered from $p(y\mid\mathbf{x})$ alone?
+
+\textbf{Solution.}
+\begin{itemize}
+\item[(i)] \textbf{Can answer.} Compute $\hat{y} = \arg\max_y p(y \mid \mathbf{x})$; this is exactly what the model outputs.
+\item[(ii)] \textbf{Cannot answer.} Sampling needs $p(\mathbf{x} \mid y=2)$, which by Bayes requires $p(\mathbf{x})$ and $p(y)$, neither of which the model has.
+\item[(iii)] \textbf{Cannot answer.} $p(\mathbf{x})$ is never modeled; $p(y\mid\mathbf{x})$ sums to 1 over labels for every $\mathbf{x}$, so it carries no information about how common $\mathbf{x}$ itself is.
+\end{itemize}
+
+\textbf{Explanation.} A classifier is like a critic who can look at a picture and say ``that is class 2''. It cannot paint a new class-2 picture, because it never learned what class-2 pictures look like pixel by pixel. It also cannot tell whether an image is realistic or pure noise, because it gives label probabilities for any input, even random static. To generate or to score images you need a generative model of $\mathbf{x}$.
+
+\textbf{Reference.} Generative vs.\ discriminative models; Lecture 1 slides 15--17 and mini-quiz Q4; Hand notes Section 4 and Mistake 4.
+
+%==================================================
+\section*{Problem 2. Bernoulli and Gaussian MLE}
+
+\subsection*{Problem 2.1}
+\textbf{Question.} Ten independent flips are $1,0,1,1,0,1,1,0,1,1$. The model is $p(x=1\mid\theta)=\theta$. Derive $\hat\theta_{\text{ML}}$ and give its value.
+
+\textbf{Hint 1.} Write the probability of one observation as $\theta^{x}(1-\theta)^{1-x}$, multiply over the data, then take the log.
+
+\textbf{Hint 2.} The log-likelihood depends on the data only through $N_1$ (number of 1s) and $N_0$ (number of 0s). Differentiate and set to zero.
+
+\textbf{Solution.} Counts: $N=10$, $N_1=7$, $N_0=3$.
+\[
+\ell(\theta) = \sum_{n=1}^{10}\Big[x^{(n)}\log\theta + (1-x^{(n)})\log(1-\theta)\Big] = 7\log\theta + 3\log(1-\theta).
+\]
+\[
+\frac{d\ell}{d\theta} = \frac{7}{\theta} - \frac{3}{1-\theta} = 0
+\;\Rightarrow\; 7(1-\theta) = 3\theta
+\;\Rightarrow\; \hat\theta_{\text{ML}} = \frac{7}{10} = 0.7.
+\]
+Check it is a maximum:
+\[
+\frac{d^2\ell}{d\theta^2} = -\frac{7}{\theta^2} - \frac{3}{(1-\theta)^2} < 0 \quad\text{for } \theta\in(0,1).
+\]
+
+\textbf{Explanation.} Read the ten values as ten pixels of a black-and-white image, where 1 means ``ink'' and 0 means ``blank''. The simplest image generator turns each pixel on with chance $\theta$. Which $\theta$ makes the training pixels most likely? The one that matches how often ink actually appeared: 7 out of 10, so $0.7$. A generator trained this way would draw ink on about 70\% of pixels. Deep models use the same principle, just with millions of parameters instead of one.
+
+\textbf{Reference.} Likelihood, log-likelihood, MLE; Lecture 1 slides 11--13; Hand notes Section 3 (worked Bernoulli MLE).
+
+%--------------------------------------------------
+\subsection*{Problem 2.2}
+\textbf{Question.} $x^{(1)},\dots,x^{(N)}$ are i.i.d.\ $\mathcal{N}(\mu,\sigma^2)$ with both parameters unknown. Write the log-likelihood, derive $\hat\mu$ and $\hat\sigma^2$, and state how $\hat\sigma^2_{\text{ML}}$ differs from the unbiased sample variance.
+
+\textbf{Hint 1.} The Gaussian density is
+\[
+\mathcal{N}(x;\mu,\sigma^2) = \frac{1}{\sqrt{2\pi\sigma^2}}\exp\!\Big(-\frac{(x-\mu)^2}{2\sigma^2}\Big).
+\]
+Its log turns the product over $n$ into a sum.
+
+\textbf{Hint 2.} Differentiate with respect to $\mu$ first. Then treat $\sigma^2$ as one variable (call it $v$) and differentiate with respect to $v$, plugging in $\hat\mu$.
+
+\textbf{Hint 3.} The ML estimate divides by $N$. Ask what happens because $\hat\mu$ was estimated from the same data.
+
+\textbf{Solution.} Log-likelihood:
+\[
+\ell(\mu,\sigma^2) = -\frac{N}{2}\log(2\pi) - \frac{N}{2}\log\sigma^2 - \frac{1}{2\sigma^2}\sum_{n=1}^{N}\big(x^{(n)}-\mu\big)^2.
+\]
+Derivative with respect to $\mu$:
+\[
+\frac{\partial\ell}{\partial\mu} = \frac{1}{\sigma^2}\sum_{n=1}^{N}\big(x^{(n)}-\mu\big) = 0
+\;\Rightarrow\; \hat\mu = \frac{1}{N}\sum_{n=1}^{N}x^{(n)}.
+\]
+Derivative with respect to $v=\sigma^2$:
+\[
+\frac{\partial\ell}{\partial v} = -\frac{N}{2v} + \frac{1}{2v^2}\sum_{n=1}^{N}\big(x^{(n)}-\hat\mu\big)^2 = 0
+\;\Rightarrow\; \hat\sigma^2_{\text{ML}} = \frac{1}{N}\sum_{n=1}^{N}\big(x^{(n)}-\hat\mu\big)^2.
+\]
+Difference from the unbiased estimate:
+\[
+s^2 = \frac{1}{N-1}\sum_{n=1}^{N}\big(x^{(n)}-\hat\mu\big)^2, \qquad
+\hat\sigma^2_{\text{ML}} = \frac{N-1}{N}\,s^2,
+\qquad
+\mathbb{E}\big[\hat\sigma^2_{\text{ML}}\big] = \frac{N-1}{N}\sigma^2 < \sigma^2.
+\]
+The ML estimate divides by $N$ and is biased low; $s^2$ divides by $N-1$ and is unbiased. The gap vanishes as $N\to\infty$.
+
+\textbf{Explanation.} Imagine modeling the amplitude of one audio sample across many recordings with a bell curve. The best center for the bell is the average amplitude, and the best width is the average squared distance from that center. The width comes out a bit too small, because the center was chosen to sit as close to these exact recordings as possible, so distances to it look smaller than distances to the true center. Dividing by $N-1$ instead of $N$ corrects this. With large datasets, as in generative modeling, the two are practically the same.
+
+\textbf{Reference.} MLE under the i.i.d.\ assumption; Lecture 1 slides 10--12; Hand notes Section 3; Bishop PRML \S1.2.4 (Gaussian MLE and bias).
+
+%==================================================
+\section*{Problem 3. Likelihood, KL, and what the words mean}
+
+\subsection*{Problem 3.1}
+\textbf{Question.} Distinguish $p(\mathbf{x}\mid\theta)$ as a probability model from the likelihood $L(\theta)$. Say which argument is held fixed in each view.
+
+\textbf{Hint 1.} Same formula, two readings. Ask: which thing am I changing, and which am I freezing?
+
+\textbf{Solution.} As a probability model, $\theta$ is fixed and $\mathbf{x}$ varies; $p(\mathbf{x}\mid\theta)$ is a distribution over data that sums or integrates to 1 over $\mathbf{x}$. As a likelihood, the observed data $\mathcal{D}$ is fixed and $\theta$ varies; $L(\theta) = p(\mathcal{D}\mid\theta)$ is a score for each parameter setting and is not a distribution over $\theta$ (it need not integrate to 1 over $\theta$) unless a prior is added.
+
+\textbf{Explanation.} With a trained text model (fixed weights), $p(\mathbf{x}\mid\theta)$ answers ``which sentences will this model tend to produce?''. During training, the sentences are fixed (the dataset) and we try different weights; $L(\theta)$ answers ``how well do these weights explain the sentences we have?''.
+
+\textbf{Reference.} Probability vs.\ likelihood; Lecture 1 slide 11; Hand notes Section 3 and Mistake 1.
+
+%--------------------------------------------------
+\subsection*{Problem 3.2}
+\textbf{Question.} Starting from $\mathbb{E}_{p_{\text{data}}}[\log p_\theta(\mathbf{x})] = \int p_{\text{data}}(\mathbf{x})\log p_\theta(\mathbf{x})\,d\mathbf{x}$, show that maximizing it over $\theta$ is equivalent to minimizing $\mathrm{KL}(p_{\text{data}}\,\|\,p_\theta)$. Identify the term that does not depend on $\theta$.
+
+\textbf{Hint 1.} Add and subtract $\log p_{\text{data}}(\mathbf{x})$ inside the integral.
+
+\textbf{Hint 2.} Recall $\mathrm{KL}(p\|q) = \int p\,(\log p - \log q)$ and $H(p) = -\int p\log p$.
+
+\textbf{Solution.}
+\[
+\begin{aligned}
+\mathbb{E}_{p_{\text{data}}}[\log p_\theta(\mathbf{x})]
+&= \int p_{\text{data}}(\mathbf{x})\Big[\log p_{\text{data}}(\mathbf{x}) - \log p_{\text{data}}(\mathbf{x}) + \log p_\theta(\mathbf{x})\Big]d\mathbf{x} \\
+&= \int p_{\text{data}}\log p_{\text{data}}\,d\mathbf{x} - \int p_{\text{data}}\big(\log p_{\text{data}} - \log p_\theta\big)\,d\mathbf{x} \\
+&= -H(p_{\text{data}}) - \mathrm{KL}(p_{\text{data}}\,\|\,p_\theta).
+\end{aligned}
+\]
+$H(p_{\text{data}})$ depends only on the true data distribution, not on $\theta$. Therefore
+\[
+\arg\max_\theta \mathbb{E}_{p_{\text{data}}}[\log p_\theta(\mathbf{x})] = \arg\min_\theta \mathrm{KL}(p_{\text{data}}\,\|\,p_\theta).
+\]
+Since $\mathrm{KL}\ge 0$ with equality only when $p_\theta = p_{\text{data}}$, the best possible model is the true distribution.
+
+\textbf{Explanation.} The average log-score a model gives to real images splits into two parts. One part is how unpredictable real images are by nature (entropy); no model can change that. The other part is the gap between the model and reality (KL). Raising the score can only shrink the gap. So training an image generator by maximum likelihood is the same as pushing it to match the real image distribution. This direction of KL punishes the model for giving near-zero chance to real images, so it tries to cover every kind of image in the data (mode covering).
+
+\textbf{Reference.} MLE and KL divergence; Lecture 1 slide 12; Hand notes Section 3 (Why this objective matches ``closeness'').
+
+%--------------------------------------------------
+\subsection*{Problem 3.3}
+\textbf{Question.} A density estimator reports $p_\theta(x_0)=3.5$ at a scalar point. A classmate says this is invalid. Reply.
+
+\textbf{Hint 1.} Is $x_0$ discrete or continuous? What must integrate to 1?
+
+\textbf{Solution.} For a continuous variable, $p_\theta(x_0)$ is a density, not a probability. Only the integral of the density over a region is a probability, and only the total integral must equal 1. A tall, narrow density can exceed 1 at a point while still integrating to 1, so $3.5$ is perfectly valid.
+
+\textbf{Explanation.} Suppose an audio model predicts a signal value that is almost always very close to $x_0$. The density then forms a tall, thin spike there. For example, a bell curve with standard deviation $0.1$ peaks at about $4$, yet its total area is still 1. Height is ``probability per unit of signal value'', not probability itself.
+
+\textbf{Reference.} PMF vs.\ PDF; Lecture 1 slide 7 and mini-quiz Q1; Hand notes Section 2 and Mistake 2.
+
+%==================================================
+\section*{Problem 4. A two-component mixture}
+
+\subsection*{Problem 4.1}
+\textbf{Question.} Write the marginal density $p(x)$.
+
+\textbf{Hint 1.} Sum the joint $p(x\mid z)p(z)$ over both components.
+
+\textbf{Solution.}
+\[
+p(x) = \pi\,\mathcal{N}(x;\mu_1,\sigma^2) + (1-\pi)\,\mathcal{N}(x;\mu_2,\sigma^2).
+\]
+
+\textbf{Explanation.} Picture a generator of a sensor signal that runs in two hidden ``modes'' (for example, idle and active). With chance $\pi$ it is in mode 1 and outputs values around $\mu_1$; otherwise it is in mode 2 and outputs values around $\mu_2$. The overall shape of the signal values is a blend of two bell curves, weighted by how often each mode is used.
+
+\textbf{Reference.} Marginal likelihood with a discrete latent; Gaussian mixture; Lecture 1 slides 20, 24; Hand notes Sections 5--6.
+
+%--------------------------------------------------
+\subsection*{Problem 4.2}
+\textbf{Question.} Write $r_1(x)=p(z=1\mid x)$ in terms of $\pi,\mu_1,\mu_2,\sigma^2$.
+
+\textbf{Hint 1.} Use Bayes' rule: posterior = prior $\times$ likelihood / evidence. The evidence is the answer to 4.1.
+
+\textbf{Hint 2.} Because both components share $\sigma^2$, the factor $1/\sqrt{2\pi\sigma^2}$ cancels.
+
+\textbf{Solution.}
+\[
+r_1(x) = \frac{\pi\,\mathcal{N}(x;\mu_1,\sigma^2)}{\pi\,\mathcal{N}(x;\mu_1,\sigma^2) + (1-\pi)\,\mathcal{N}(x;\mu_2,\sigma^2)}
+\]
+which, after cancelling $1/\sqrt{2\pi\sigma^2}$, becomes
+\[
+r_1(x) = \frac{\pi\exp\!\big(-\frac{(x-\mu_1)^2}{2\sigma^2}\big)}{\pi\exp\!\big(-\frac{(x-\mu_1)^2}{2\sigma^2}\big) + (1-\pi)\exp\!\big(-\frac{(x-\mu_2)^2}{2\sigma^2}\big)}.
+\]
+
+\textbf{Explanation.} Given one observed signal value, $r_1(x)$ is the model's answer to ``how sure am I that mode 1 produced this?''. It compares how much mode 1 contributes to $p(x)$ against the total. Values near $\mu_1$ push $r_1$ toward 1; values near $\mu_2$ push it toward 0. This is the ``soft assignment'' used in the E-step of EM.
+
+\textbf{Reference.} Bayes' rule; responsibility; Lecture 1 slides 9, 24; Hand notes Section 6.
+
+%--------------------------------------------------
+\subsection*{Problem 4.3}
+\textbf{Question.} Compute $r_1(1)$ for $\pi=0.6$, $\mu_1=0$, $\mu_2=3$, $\sigma^2=1$, with intermediate Gaussian densities visible.
+
+\textbf{Hint 1.} Evaluate $\mathcal{N}(1;0,1)$ and $\mathcal{N}(1;3,1)$ separately using $(2\pi)^{-1/2}\approx 0.39894$.
+
+\textbf{Hint 2.} Multiply each by its prior weight ($0.6$ and $0.4$), then divide the first by the sum.
+
+\textbf{Solution.}
+\[
+\mathcal{N}(1;0,1) = 0.39894\,e^{-(1-0)^2/2} = 0.39894\times e^{-0.5} = 0.39894\times 0.60653 \approx 0.24197,
+\]
+\[
+\mathcal{N}(1;3,1) = 0.39894\,e^{-(1-3)^2/2} = 0.39894\times e^{-2} = 0.39894\times 0.13534 \approx 0.05399.
+\]
+Weighted terms:
+\[
+0.6\times 0.24197 = 0.14518, \qquad 0.4\times 0.05399 = 0.02160.
+\]
+\[
+r_1(1) = \frac{0.14518}{0.14518 + 0.02160} = \frac{0.14518}{0.16678} \approx 0.870.
+\]
+Check: $r_2(1) = 1 - r_1(1) \approx 0.130$.
+
+\textbf{Explanation.} The observed value $1$ is 1 unit from mode 1's center and 2 units from mode 2's center, and mode 1 is also used more often (60\%). Both reasons favor mode 1, so the model is about 87\% sure mode 1 generated it.
+
+\textbf{Reference.} Responsibility in a Gaussian mixture; Lecture 1 slide 24; Hand notes Section 6.
+
+%--------------------------------------------------
+\subsection*{Problem 4.4}
+\textbf{Question.} If $p(\mathbf{x}\mid z) = \prod_d p(x_d\mid z)$, does it follow that $p(x_1,x_2) = p(x_1)p(x_2)$? If not, which variable induces the dependence?
+
+\textbf{Hint 1.} Write $p(x_1,x_2)$ by summing $p(x_1\mid z)p(x_2\mid z)p(z)$ over $z$.
+
+\textbf{Hint 2.} Can a sum of products be rewritten as a product of two sums? Try it with two components whose means differ.
+
+\textbf{Solution.} No.
+\[
+p(x_1,x_2) = \sum_{z} p(x_1\mid z)\,p(x_2\mid z)\,p(z),
+\qquad
+p(x_1)\,p(x_2) = \Big(\sum_z p(x_1\mid z)p(z)\Big)\Big(\sum_{z'} p(x_2\mid z')p(z')\Big).
+\]
+These are generally different. The shared latent $z$ induces the dependence: $x_1 \perp x_2 \mid z$ holds, but marginal independence does not. Equality only holds in special cases, e.g.\ when $p(x_d\mid z)$ does not depend on $z$.
+
+\textbf{Explanation.} Think of two pixels in a generated image, where $z$ is a hidden ``scene type'' (night or day). Once you know it is night, each pixel's brightness is drawn separately. But if you do not know $z$ and you see one dark pixel, you start guessing ``probably night'', which makes you expect the other pixel to be dark too. The pixels are linked through the hidden cause. This is how a small latent code makes a whole image look coherent.
+
+\textbf{Reference.} Conditional independence given the latent; Lecture 1 slides 10, 23 and mini-quiz Q5; Hand notes Section 5 and Mistake 5.
+
+%==================================================
+\section*{Problem 5. Latent variables and the course map}
+
+\subsection*{Problem 5.1}
+\textbf{Question.} For a continuous latent $\mathbf{z}$, write $p_\theta(\mathbf{x})$, $p_\theta(\mathbf{x},\mathbf{z})$, and $p_\theta(\mathbf{z}\mid\mathbf{x})$, and state which is the ML training objective when $\mathbf{z}$ is not observed.
+
+\textbf{Hint 1.} Start from the generative story: draw $\mathbf{z}$ from the prior, then $\mathbf{x}$ from the decoder.
+
+\textbf{Hint 2.} Training can only score what is in the dataset. Which of the three involves $\mathbf{x}$ alone?
+
+\textbf{Solution.}
+\[
+p_\theta(\mathbf{x},\mathbf{z}) = p_\theta(\mathbf{x}\mid\mathbf{z})\,p_\theta(\mathbf{z}),
+\]
+\[
+p_\theta(\mathbf{x}) = \int p_\theta(\mathbf{x}\mid\mathbf{z})\,p_\theta(\mathbf{z})\,d\mathbf{z},
+\]
+\[
+p_\theta(\mathbf{z}\mid\mathbf{x}) = \frac{p_\theta(\mathbf{x}\mid\mathbf{z})\,p_\theta(\mathbf{z})}{p_\theta(\mathbf{x})}.
+\]
+The training objective is the marginal likelihood (evidence) $p_\theta(\mathbf{x})$. In practice we maximize
+\[
+\sum_{n=1}^{N} \log p_\theta(\mathbf{x}^{(n)}).
+\]
+
+\textbf{Explanation.} For an image generator with a hidden code $\mathbf{z}$ (pose, lighting, style): the joint is ``pick a code, then render an image''. The marginal is ``how likely is this image, averaged over every code that could have made it''. The posterior is ``given this image, which codes likely produced it''. The dataset has images but no codes, so the only thing we can score is the marginal.
+
+\textbf{Reference.} Generative story, marginal likelihood, posterior; Lecture 1 slides 20--21; Hand notes Section 5.
+
+%--------------------------------------------------
+\subsection*{Problem 5.2}
+\textbf{Question.} Give one reason the integral defining $p_\theta(\mathbf{x})$ has no closed form when $p_\theta(\mathbf{x}\mid\mathbf{z})$ is a multilayer neural network.
+
+\textbf{Hint 1.} Closed-form integrals exist only for special function shapes (e.g.\ Gaussian times linear-Gaussian). What does a deep network do to that shape?
+
+\textbf{Solution.} The decoder's output (e.g.\ the mean of $p(\mathbf{x}\mid\mathbf{z})$) is a composition of nonlinear layers in $\mathbf{z}$, so the integrand $p_\theta(\mathbf{x}\mid\mathbf{z})p_\theta(\mathbf{z})$ has no known antiderivative. Numerical integration is also infeasible because $\mathbf{z}$ is high-dimensional, so the cost grows exponentially with its dimension.
+
+\textbf{Explanation.} To score one image, the model would have to try every possible hidden code, run the network on each, and add up the results. A neural network bends the input in complicated ways, so there is no shortcut formula, and the number of codes to try explodes as the code gets longer. That is why later models either avoid $\mathbf{z}$, bound the integral, or skip the density.
+
+\textbf{Reference.} Intractability of the marginal; Lecture 1 slide 21 and mini-quiz Q3; Hand notes Section 5.
+
+%--------------------------------------------------
+\subsection*{Problem 5.3}
+\textbf{Question.} Complete the table (density: exact / lower bound / not computed; sampling: short phrase).
+
+\textbf{Hint 1.} Ask for each family: is the density exact, bounded, or not defined at all?
+
+\textbf{Hint 2.} For sampling, ask: one pass, one coordinate at a time, or a long Markov chain?
+
+\textbf{Solution.}
+
+\begin{center}
+\begin{tabular}{lll}
+\toprule
+Family & Density $p(\mathbf{x})$ & A sample is produced by \\
+\midrule
+Autoregressive model & exact & \begin{tabular}[t]{@{}l@{}}generating one coordinate at a time,\\each conditioned on the previous ones\end{tabular} \\[2ex]
+Variational autoencoder & lower bound (ELBO) & \begin{tabular}[t]{@{}l@{}}drawing $\mathbf{z}$ from the prior,\\then decoding with $p(\mathbf{x}\mid\mathbf{z})$\end{tabular} \\[2ex]
+GAN & not computed & one forward pass $\mathbf{x}=G(\mathbf{z})$ of noise \\[1ex]
+Normalizing flow & exact & \begin{tabular}[t]{@{}l@{}}one invertible map applied\\to base noise\end{tabular} \\[2ex]
+Energy-based model & \begin{tabular}[t]{@{}l@{}}unnormalized (partition\\function $Z$ is unknown)\end{tabular} & \begin{tabular}[t]{@{}l@{}}MCMC that drifts toward\\low-energy $\mathbf{x}$\end{tabular} \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+For the energy-based model: we know $\tilde p(\mathbf{x}) = e^{-E(\mathbf{x})}$, but the normalizing constant $Z=\int e^{-E(\mathbf{x})}\,d\mathbf{x}$ is missing, so $p(\mathbf{x}) = \tilde p(\mathbf{x})/Z$ is unavailable.
+
+\textbf{Explanation.} A text model like GPT is autoregressive: it writes word by word and can give an exact probability for any sentence. A VAE picks a hidden code and decodes it into an image; it can only give a guaranteed floor for the image's log-probability. A GAN turns random noise into an image in one shot but never says how likely an image is. A flow reshapes noise into an image with a reversible map, so it can run backward and compute an exact probability. An energy-based model can say ``this image is better than that one'', but not by how much in absolute probability terms, and it creates images by repeatedly nudging noise toward low energy.
+
+\textbf{Reference.} Map of the families; Lecture 1 slides 5, 27--28; Hand notes Section 8.
+
+\end{document}
