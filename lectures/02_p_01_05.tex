@@ -1,0 +1,262 @@
+\newpage
+
+\section{Autoregressive Models}
+
+% ============================================================
+\subsection*{Chain Rule of Probability: How and Why It Works}
+% ============================================================
+
+\subsubsection*{1. Where it comes from: conditional probability}
+
+Everything starts from the definition of conditional probability:
+\[
+p(A \mid B) = \frac{p(A, B)}{p(B)}, \quad \text{for } p(B) > 0
+\]
+Read it as: ``Among all outcomes where $B$ happened, what fraction also has $A$?''
+
+Multiply both sides by $p(B)$:
+\[
+p(A, B) = p(B)\, p(A \mid B)
+\]
+This is the \textbf{two-variable chain rule}. It is just the definition rearranged, not a new law.
+
+\subsubsection*{2. Extending to many variables}
+
+Apply the same step repeatedly, treating everything before the current variable as ``$B$''.
+
+For three variables, group $(x_1, x_2)$ as one block:
+\[
+p(x_1, x_2, x_3) = p(x_1, x_2)\, p(x_3 \mid x_1, x_2)
+\]
+Then split $p(x_1, x_2)$ again:
+\[
+p(x_1, x_2, x_3) = p(x_1)\, p(x_2 \mid x_1)\, p(x_3 \mid x_1, x_2)
+\]
+Repeating this $D$ times gives the general form:
+\[
+p(x_1, \dots, x_D) = \prod_{i=1}^{D} p(x_i \mid x_{<i})
+\]
+
+\subsubsection*{3. Why it works: the product telescopes}
+
+Write each conditional using its definition:
+\[
+p(x_1) \cdot \frac{p(x_1, x_2)}{p(x_1)} \cdot \frac{p(x_1, x_2, x_3)}{p(x_1, x_2)}
+\]
+Each numerator cancels the next denominator. Only $p(x_1, x_2, x_3)$ survives.
+
+So the chain rule is an \textbf{identity}. It holds for every distribution and makes no assumptions:
+\begin{itemize}
+  \item \textbf{No independence is assumed.} Each variable may depend on all earlier ones.
+  \item \textbf{Nothing is approximated.} The product equals the joint exactly.
+\end{itemize}
+The only requirement is that each prefix has nonzero probability, so the divisions are defined.
+
+\subsubsection*{4. Intuition: narrowing down step by step}
+
+Think of the joint probability as a fraction of all possible outcomes. You reach it by successive filtering.
+
+Take a language model generating the sentence \textbf{``the cat sat''}:
+
+\begin{center}
+\begin{tabular}{c l p{8cm} c}
+\toprule
+Step & Factor & Meaning & Value \\
+\midrule
+1 & $p(\text{the})$ & Fraction of all sentences that start with ``the'' & 0.05 \\
+2 & $p(\text{cat} \mid \text{the})$ & Of those, fraction whose next token is ``cat'' & 0.01 \\
+3 & $p(\text{sat} \mid \text{the, cat})$ & Of those, fraction whose next token is ``sat'' & 0.20 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\[
+p(\text{the cat sat}) = 0.05 \times 0.01 \times 0.20 = 0.0001
+\]
+Each factor is a ``fraction of a fraction.'' Multiplying them gives the share of the whole sentence space occupied by exactly this sequence.
+
+The same logic holds for images. The probability of a whole image equals:
+\begin{itemize}
+  \item the probability of the first pixel's intensity,
+  \item times the probability of the second pixel given the first,
+  \item and so on, up to the last pixel given all pixels before it.
+\end{itemize}
+
+\subsubsection*{5. Contrast: what would be wrong}
+
+If you assumed the tokens were independent, you would compute:
+\[
+p(\text{the})\, p(\text{cat})\, p(\text{sat})
+\]
+This ignores the fact that ``sat'' is far more likely after ``the cat'' than in general. The joint would be badly wrong.
+
+The chain rule keeps every dependency by conditioning on the full history.
+
+\subsubsection*{6. Order does not matter for correctness}
+
+The derivation never used a particular order. You could factor right-to-left, or in any permutation:
+\[
+p(x_1, x_2, x_3) = p(x_3)\, p(x_2 \mid x_3)\, p(x_1 \mid x_2, x_3)
+\]
+All orderings give the \textbf{same joint}. What changes is the set of conditionals. Some orderings are easier for a network to learn, such as left-to-right for text, time order for audio, and raster order for images. That is why the lecture says ``the order is part of the model.''
+
+\subsubsection*{7. Bridge to autoregressive models}
+
+The chain rule turns one huge, intractable object into $D$ small conditionals. Examples of that huge object are a distribution over all $32 \times 32 \times 3$ images, or over all possible sentences.
+
+An autoregressive model's only job is to learn those conditionals with a shared network. Because the factorization is exact, the model's likelihood is exact too.
+
+% ============================================================
+\subsection*{Meaning of ``The Chain Rule Is an Identity''}
+% ============================================================
+
+An \textbf{identity} is an equation that is true for every possible value of its variables, not just under certain conditions. For example, $(a+b)^2 = a^2 + 2ab + b^2$ holds for all numbers $a, b$; you never have to check whether it applies.
+
+``The chain rule is an identity'' means:
+\[
+p(x_1, \dots, x_D) = \prod_{i=1}^{D} p(x_i \mid x_{<i})
+\]
+is true for \textbf{every} probability distribution and \textbf{every} sequence. It follows directly from the definition of conditional probability, as the telescoping cancellation showed, so it cannot fail.
+
+Contrast this with a \textbf{modeling assumption}, which can be wrong:
+\begin{itemize}
+  \item \textbf{Identity (always true):} $p(\text{the cat sat}) = p(\text{the})\,p(\text{cat} \mid \text{the})\,p(\text{sat} \mid \text{the, cat})$
+  \item \textbf{Assumption (may be false):} $p(\text{the cat sat}) = p(\text{the})\,p(\text{cat})\,p(\text{sat})$, which claims the tokens are independent
+\end{itemize}
+
+\textbf{Why it matters for autoregressive models:} writing the joint as a product of conditionals loses no generality. Any distribution over images, text, or audio can be represented this way.
+
+The only possible source of error is the network's estimate of each conditional $p_\theta(x_i \mid x_{<i})$, not the factorization itself. That is why the lecture calls the likelihood ``exact'': there is no approximation gap like the ELBO in VAEs.
+
+% ============================================================
+\subsection*{Chain Rule for Dependent vs.\ Independent Variables}
+% ============================================================
+
+The chain rule does \textbf{not} assume dependence. It \textit{allows} dependence but does not \textit{require} it. It holds in both cases.
+
+\subsubsection*{What happens when variables are independent}
+
+Independence means that knowing the past tells you nothing about the next variable:
+\[
+p(x_i \mid x_{<i}) = p(x_i)
+\]
+Substitute this into the chain rule:
+\[
+p(x_1, \dots, x_D) = \prod_{i} p(x_i \mid x_{<i}) = \prod_{i} p(x_i)
+\]
+This is exactly the familiar product rule for independent variables. So the independence formula is just a \textbf{special case} of the chain rule, where each conditional simplifies to a marginal.
+
+\subsubsection*{Generative example}
+
+Suppose a model generates \textbf{white-noise audio}, where each sample is drawn independently from $\mathcal{N}(0, \sigma^2)$:
+\begin{itemize}
+  \item The chain rule still gives $p(x_1)\,p(x_2 \mid x_1)\,p(x_3 \mid x_1, x_2)\cdots$
+  \item Because the samples are independent, each $p(x_i \mid x_{<i})$ equals $\mathcal{N}(0, \sigma^2)$.
+  \item The result is a product of identical Gaussians, which is correct.
+\end{itemize}
+
+Now suppose it generates \textbf{speech}, where each sample depends strongly on the previous ones:
+\begin{itemize}
+  \item The conditionals carry that dependence.
+  \item The chain rule still holds, and now the conditioning actually matters.
+\end{itemize}
+
+\subsubsection*{The one real condition}
+
+The only requirement is that each prefix must have nonzero probability, so $p(x_i \mid x_{<i})$ is defined.
+
+This condition is about the conditional being well-defined. It has nothing to do with dependence or independence. For a valid sequence you are evaluating, it is satisfied automatically.
+
+\subsubsection*{Summary}
+
+\begin{center}
+\begin{tabular}{l c l}
+\toprule
+Situation & Chain rule holds? & What the conditionals look like \\
+\midrule
+Dependent (text, speech, images) & Yes & Depend on the history \\
+Independent (white noise) & Yes & Reduce to plain marginals \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+This is why it is called an identity: it is true regardless of the dependence structure. Dependence only changes what the conditionals turn out to be.
+
+% ============================================================
+\subsection*{Definition of an Autoregressive Model}
+% ============================================================
+
+From the lecture: \textit{``An autoregressive (AR) model represents the joint by the chain-rule product and parameterizes each conditional with a shared function of the past.''}
+
+\subsubsection*{The sentence, broken into parts}
+
+\textbf{1. ``represents the joint by the chain-rule product''}
+
+The model's goal is the joint distribution $p(\mathbf{x})$, for example a distribution over all possible images or sentences. Instead of modeling it directly, the model writes it as
+\[
+p(\mathbf{x}) = \prod_{i=1}^{D} p(x_i \mid x_{<i})
+\]
+Since the chain rule is an identity, this loses nothing. The problem has changed from ``model the whole object at once'' to ``model $D$ next-step predictions.''
+
+\textbf{2. ``parameterizes each conditional''}
+
+Each factor $p(x_i \mid x_{<i})$ is unknown, so a neural network with parameters $\theta$ is used to produce it. ``Parameterize'' means the conditional's form is set by learnable numbers $\theta$, written $p_\theta(x_i \mid x_{<i})$.
+
+\textbf{3. ``with a shared function''}
+
+\textbf{One} network with \textbf{one} set of parameters $\theta$ produces every conditional. You do not train a separate network for position 1, position 2, and so on.
+
+Sharing is necessary, not just convenient. Take a $32 \times 32 \times 3$ image with 256 intensity values:
+\begin{itemize}
+  \item Without sharing, the conditional for position $i$ would need an entry for every possible prefix, which is $256^{i-1}$ cases.
+  \item At position 3072, that number is astronomically large, so no lookup table could store it.
+\end{itemize}
+A shared network avoids this. It learns general rules, such as ``pixels near an edge tend to continue that edge,'' and applies them at every position.
+
+\textbf{4. ``of the past''}
+
+The network may look \textbf{only} at $x_1, \dots, x_{i-1}$. It must never see $x_i$ itself or anything after it. This is the causal constraint. If the network saw $x_i$, it could simply copy the answer, and the product would no longer equal the true joint.
+
+\subsubsection*{The equation}
+
+\[
+p_\theta(x_i \mid x_{<i}) = f_\theta(x_1, \dots, x_{i-1})
+\]
+
+\begin{center}
+\begin{tabular}{l p{11cm}}
+\toprule
+Symbol & Meaning \\
+\midrule
+$f_\theta$ & The neural network: an RNN, masked CNN, or Transformer \\
+$\theta$ & Its parameters, the same at every position $i$ \\
+Input $x_1, \dots, x_{i-1}$ & The past only, which is the context \\
+Output & A \textbf{probability distribution} over the possible values of $x_i$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+The key point is that $f_\theta$ outputs a \textbf{distribution}, not a single predicted value.
+
+\textbf{Example: generating text.} Suppose the context is ``the cat'' and the vocabulary has 50{,}000 tokens. Then $f_\theta(\text{the, cat})$ outputs a 50{,}000-entry probability vector via softmax:
+\begin{itemize}
+  \item ``sat'' $\rightarrow$ 0.20
+  \item ``is'' $\rightarrow$ 0.15
+  \item ``ran'' $\rightarrow$ 0.08
+  \item \dots and so on, summing to 1.
+\end{itemize}
+Uses of this vector:
+\begin{itemize}
+  \item \textbf{Training:} read off the probability of the true next token and add its $-\log$ to the loss.
+  \item \textbf{Generation:} sample a token from this vector.
+\end{itemize}
+
+\textbf{Example: generating an image pixel.} The context is all pixels above, plus those to the left in the current row. $f_\theta$ outputs a 256-way softmax over the intensities of the next channel value.
+
+For an audio sample, it could instead output the parameters of a Gaussian or a mixture of logistics.
+
+\subsubsection*{The ``auto'' part}
+
+``Autoregressive'' means the variable is predicted (\textit{regressed}) from earlier values of \textbf{itself} (\textit{auto}). Pixels predict pixels, tokens predict tokens, audio samples predict audio samples. There is no separate input stream.
+
+This differs from, say, a translation model, which predicts French from an English input. The conditional PixelCNN in the lecture adds an external $\mathbf{h}$, but the autoregressive core is still conditioning on the data's own past.

@@ -21,7 +21,7 @@ Create a Latex file from above conversation. Follow below rules to convert to la
 1. Rephrase my messages to sound like title of a topic or subtopic. 
 2. Rephrease your responses if required only. Otherwise keep as it is. 
 3. Do not write latex document setup code. 
-4. Begin the latex file with \section{Introduction to Neural Network}. There should not be any other \section{}. 
+4. Begin the latex file with \section{Autoregressive Models}. There should not be any other \section{}. 
    If you need to make any title or sub-title, use \subsection*{} or \subsubsection*{} or textbf{}
 
 5. Keep the latex code minimal. Do not use any custom command. Do no use any colors, black and white only. Assume that the latex document setup code is following
