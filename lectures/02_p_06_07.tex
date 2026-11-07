@@ -1,0 +1,220 @@
+% ============================================================
+\subsection*{The Chain Rule Holds for Every Permutation of the Coordinates}
+
+\subsubsection*{What the statement means}
+
+The chain rule is the definition of conditional probability applied repeatedly:
+\[
+p(a, b) = p(a)\,p(b \mid a) = p(b)\,p(a \mid b).
+\]
+Nothing in this identity says \emph{which} variable goes first. So with $D$ variables you can choose any ordering $\pi$ (a permutation of $1,\dots,D$), reveal the variables in that order, and the product of conditionals still equals the same joint:
+\[
+p(\mathbf{x}) = \prod_{i=1}^{D} p\big(x_{\pi(i)} \mid x_{\pi(1)}, \dots, x_{\pi(i-1)}\big).
+\]
+Here $\pi(i)$ means ``the coordinate visited at step $i$.''
+
+\subsubsection*{Text example}
+
+Take the 3-token sentence ``the cat sat'', with $x_1=$ the, $x_2=$ cat, $x_3=$ sat.
+
+\textbf{Left-to-right}, $\pi = (1,2,3)$, which is how GPT works:
+\[
+p(\text{the})\cdot p(\text{cat}\mid\text{the})\cdot p(\text{sat}\mid\text{the, cat})
+\]
+
+\textbf{Right-to-left}, $\pi = (3,2,1)$:
+\[
+p(\text{sat})\cdot p(\text{cat}\mid\text{sat})\cdot p(\text{the}\mid\text{cat, sat})
+\]
+
+\textbf{Middle-first}, $\pi = (2,1,3)$:
+\[
+p(\text{cat})\cdot p(\text{the}\mid\text{cat})\cdot p(\text{sat}\mid\text{the, cat})
+\]
+
+All three products give exactly the same number, $p(\text{the, cat, sat})$. The individual factors are different questions, though:
+\begin{itemize}
+  \item $p(\text{cat} \mid \text{the})$ asks which noun follows ``the''.
+  \item $p(\text{cat} \mid \text{sat})$ asks what kind of subject sits.
+\end{itemize}
+
+\subsubsection*{Image example}
+
+For a $32\times32$ image, raster order predicts the bottom-right pixel last, using the whole image above it. If you reverse the order, the bottom-right pixel comes \emph{first} and has no context, so its conditional is just the marginal distribution of corner pixel colors. A column-major order or a space-filling curve gives yet another set of conditionals. The image's joint probability is identical under all of them.
+
+\subsubsection*{Why it matters: the order is part of the model}
+
+\begin{enumerate}
+  \item \textbf{In theory, the joint is the same.} If the network learned every conditional perfectly, every order would give the same $p(\mathbf{x})$.
+  \item \textbf{In practice, the learning problem changes.} The network $f_\theta$ has to approximate a different set of functions for each order. Some orders are easier: text left-to-right matches how grammar unfolds, and audio forward in time matches causality. For images, no order is naturally correct; raster order is a convention.
+  \item \textbf{Learned models are not order-invariant.} Two trained models with different orders usually assign \emph{different} probabilities to the same image, because each one's approximation errors fall in different places. Whichever order makes the conditionals easier to learn tends to get better bpd.
+  \item \textbf{Sampling follows the order.} Ancestral sampling must generate in order $\pi$. That decides which parts of the output are produced with little context (and are most uncertain), and where exposure-bias errors start to compound.
+\end{enumerate}
+
+In one line: the chain rule guarantees that every order is \emph{exactly correct} as a factorization, but you still have to pick one. That choice determines which conditionals the network must learn and the order in which samples are generated.
+
+% ============================================================
+\subsection*{Each Order Defines a Different Set of Functions for $f_\theta$}
+
+\subsubsection*{Each conditional is a function}
+
+In an AR model, every factor $p(x_i \mid x_{<i})$ is a \textbf{function}. Its input is the context (the variables already revealed) and its output is a probability distribution over the next variable. The network $f_\theta$, with one set of shared weights $\theta$, has to compute all $D$ of these functions.
+
+The order $\pi$ fixes two things for each step:
+\begin{itemize}
+  \item \textbf{which variables are the input} (what the network can see), and
+  \item \textbf{which variable is the target} (what it must predict).
+\end{itemize}
+Change the order and both change, so the network is being asked to compute different input$\to$output mappings.
+
+\subsubsection*{Text example}
+
+The functions the network must implement for ``the cat sat'' under each order:
+
+\textbf{Left-to-right}, $\pi=(1,2,3)$:
+
+\begin{tabular}{lll}
+\toprule
+Step & Input & Output: distribution over \ldots \\
+\midrule
+1 & nothing & first word of a sentence \\
+2 & ``the'' & word after ``the'' \\
+3 & ``the cat'' & word after ``the cat'' \\
+\bottomrule
+\end{tabular}
+
+\textbf{Right-to-left}, $\pi=(3,2,1)$:
+
+\begin{tabular}{lll}
+\toprule
+Step & Input & Output: distribution over \ldots \\
+\midrule
+1 & nothing & last word of a sentence \\
+2 & ``sat'' & word before ``sat'' \\
+3 & ``cat sat'' & word before ``cat sat'' \\
+\bottomrule
+\end{tabular}
+
+These are different jobs:
+\begin{itemize}
+  \item Step 1 in left-to-right learns ``sentences often start with \emph{the, I, a}''. In right-to-left, step 1 must learn ``sentences often end with \emph{it, here, sat}''.
+  \item Step 2 in left-to-right learns that a noun usually follows a determiner. In right-to-left, it learns which subjects tend to precede a given verb.
+\end{itemize}
+The data is the same and so is the joint $p(\text{the, cat, sat})$, but the training targets and their inputs are completely different. The weights $\theta$ end up encoding different knowledge.
+
+\subsubsection*{Image example}
+
+Predicting pixel $(16,16)$ in a $32\times32$ face image:
+\begin{itemize}
+  \item \textbf{Raster order:} the input is the top half plus the left part of row 16. The function maps ``forehead, eyes, part of the nose'' to a distribution over nose-pixel colors. That is fairly easy, because the face structure is already established.
+  \item \textbf{Reverse raster:} the input is the bottom half (mouth, chin). The function now maps ``mouth and chin'' to nose color. That is a different function.
+  \item \textbf{Center-first order:} this pixel might come first, with no input at all. The function is then just ``what color is the center of any image'', which is very uncertain.
+\end{itemize}
+
+\subsubsection*{Why this matters}
+
+\begin{enumerate}
+  \item \textbf{Difficulty differs.} Some functions are smooth and easy to learn, others are hard. Left-to-right text suits the way language is structured. For images, every order puts some pixels in a low-context, hard-to-predict spot.
+  \item \textbf{Architecture must match.} The masks in PixelCNN and the causal mask in Transformers encode \emph{which inputs each function may see}. Change the order and the masks must change too.
+  \item \textbf{Errors differ.} With finite capacity and data, $f_\theta$ approximates its set of functions imperfectly. Different sets lead to different errors, so two models trained with different orders end up with different learned joints $p_\theta(\mathbf{x})$, even though the true joint factors exactly under both.
+\end{enumerate}
+
+\textbf{In short:} the order decides what question the network answers at each step (``given \emph{this}, predict \emph{that}''). A different order is a different question set, so the network is a different function approximator, even when it targets the same joint distribution.
+
+% ============================================================
+\subsection*{Does a Generative Model Learn Multiple Orders? (Fixed-Order vs.\ Any-Order Models)}
+
+A common misreading is that a generative model learns many different orders of an image so that it can handle any input at inference. This is not how standard AR models work.
+
+\subsubsection*{A standard AR model learns one fixed order}
+
+PixelCNN, PixelRNN and GPT each choose \textbf{one order before training}: raster order for images, left-to-right for text. They learn only the conditionals for that order and never see any other.
+\begin{itemize}
+  \item \textbf{Training:} for every training image, the network learns ``given pixels $1,\dots,i-1$ in raster order, predict pixel $i$''. It learns nothing about reverse order, column order, or anything else.
+  \item \textbf{Inference:} it generates in that same raster order, one pixel after another.
+\end{itemize}
+The earlier point about different function sets was a comparison \emph{between models}: a separate model trained with a different order would learn a different set of functions. One model does not learn several orders.
+
+\subsubsection*{Generalizing to new inputs is a separate idea}
+
+A standard AR model generalizes because it has seen \textbf{many images in the same order}, not because it has seen many orders. When it meets a new context at inference, such as a partly generated face it has never seen, it relies on patterns learned across the training set, for example ``skin-colored pixels above usually mean more skin below''.
+
+There is one limit. It can only condition on information that comes \textbf{earlier in its order}. Inpainting works naturally because known pixels above and to the left act as context. Pixels below or to the right of the hole are ignored by a raster model, even when they are known, because they come later in its order.
+
+\subsubsection*{Models that do learn many orders}
+
+This idea exists as a separate family, \textbf{order-agnostic} or \textbf{any-order} AR models:
+\begin{itemize}
+  \item \textbf{Order-agnostic MADE} and \textbf{XLNet} sample a random permutation $\pi$ for each training example, so one network learns conditionals for many orders.
+  \item The benefit is that at inference you can choose the order, for example generating the unknown pixels conditioned on all known pixels wherever they are.
+  \item The cost is a much harder learning problem (many function sets in one network), which usually means worse likelihood than a fixed-order model of the same size.
+\end{itemize}
+
+\begin{tabular}{lll}
+\toprule
+ & Standard AR (PixelCNN, GPT) & Any-order AR (XLNet, MADE) \\
+\midrule
+Orders learned & 1, fixed & many, random permutations \\
+Generalizes by & many images in that order & many images $\times$ many orders \\
+Inference order & must follow the trained order & can choose \\
+\bottomrule
+\end{tabular}
+
+% ============================================================
+\subsection*{Directed Graph of an Autoregressive Model}
+
+\subsubsection*{What the graph shows}
+
+For four variables, the graph has these arrows:
+\[
+x_1 \to x_2,\quad x_1 \to x_3,\quad x_1 \to x_4,\quad x_2 \to x_3,\quad x_2 \to x_4,\quad x_3 \to x_4.
+\]
+Each \textbf{node} is one variable: a pixel, a token, or an audio sample. Each \textbf{arrow} $x_j \to x_i$ means ``$x_i$ may depend on $x_j$''. The variables that point into a node are its \textbf{parents}, and the parents are exactly the context in the chain rule:
+
+\begin{tabular}{lll}
+\toprule
+Node & Parents & Factor \\
+\midrule
+$x_1$ & none & $p(x_1)$ \\
+$x_2$ & $x_1$ & $p(x_2 \mid x_1)$ \\
+$x_3$ & $x_1, x_2$ & $p(x_3 \mid x_1, x_2)$ \\
+$x_4$ & $x_1, x_2, x_3$ & $p(x_4 \mid x_1, x_2, x_3)$ \\
+\bottomrule
+\end{tabular}
+
+Every earlier node points to every later node. This is a \textbf{fully connected} forward graph, which is why an AR model makes no independence assumptions: the chain rule itself is the graph.
+
+\textbf{Audio example:} with $x_1,\dots,x_4$ as four consecutive waveform samples, the sample at time 4 may depend on all three previous samples, but sample 2 cannot depend on sample 3.
+
+\subsubsection*{Why ``no cycle'' matters}
+
+All arrows point forward, so the graph is a \textbf{DAG} (directed acyclic graph). That guarantees a valid generation order: start at the node with no parents and move forward. This is ancestral sampling:
+\begin{enumerate}
+  \item Sample the first token, ``the'', from $p(x_1)$.
+  \item Sample ``cat'' from $p(x_2 \mid \text{the})$.
+  \item Continue to the end.
+\end{enumerate}
+If there were a cycle, say $x_2$ depends on $x_3$ and $x_3$ depends on $x_2$, neither could be generated first, because each would wait for the other. Sampling would be undefined.
+
+\subsubsection*{One network with shared weights approximates all conditionals}
+
+The graph has $D$ different conditionals, each with a different number of parents. You don't train $D$ separate networks. One network $f_\theta$ computes all of them, and masking controls which inputs each output position can see. A Transformer predicting token 4 and token 2 uses the same weights; only the visible context differs.
+
+\subsubsection*{The causal constraint}
+
+Predicting $x_i$ must not depend on $x_i, x_{i+1}, \dots, x_D$. Graphically, \textbf{no arrow may point backward or into a node from itself}. The product is only a valid probability if every factor uses earlier variables alone.
+
+\textbf{What goes wrong if it leaks:} suppose a text model predicting token $x_i$ can see $x_i$ itself. It learns to copy: $p(x_i \mid \ldots, x_i) = 1$ for every token. Then for \emph{any} sentence,
+\[
+\prod_i p(\cdot) = 1 \times 1 \times \cdots = 1.
+\]
+Every possible sentence receives probability 1, and the total over all sentences becomes far greater than 1. It is no longer a distribution, so the likelihood and bpd are meaningless. The model looks perfect during training but generates garbage, because at sampling time the ``answer'' it learned to copy is not available yet.
+
+\subsubsection*{Where masking comes in}
+
+A CNN or Transformer naturally looks at all positions, which would add backward arrows. Masking deletes those arrows:
+\begin{itemize}
+  \item \textbf{PixelCNN:} Mask A/B zero out the filter weights that touch the current pixel or future pixels.
+  \item \textbf{GPT:} the causal attention mask sets future positions to $-\infty$.
+\end{itemize}
+Both enforce exactly this DAG inside the network.
