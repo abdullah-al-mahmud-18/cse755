@@ -1,0 +1,311 @@
+% ============================================================
+% Lecture 2: Autoregressive Models -- Softmax, Ordering, Exact Likelihood
+% ============================================================
+
+\subsection*{Softmax Output of a Neural Autoregressive Text Model (Slide 8)}
+
+$$p(x_t \mid x_{<t}) = \mathrm{softmax}\big(\mathbf{W}\, h_\theta(x_{<t})\big)$$
+
+This equation says how a language model turns ``the text so far'' into a probability for every possible next token. It happens in three steps.
+
+\subsubsection*{Step 1: Summarize the context, $h_\theta(x_{<t})$}
+
+The network (an RNN or a Transformer) reads all previous tokens $x_1, \dots, x_{t-1}$ and compresses them into one vector $h \in \mathbb{R}^d$. For example, $d = 768$.
+
+For the context \textit{``The cat sat on the''}, $h$ is a single vector that encodes what this prefix means and what kind of word should come next.
+
+\subsubsection*{Step 2: Score every vocabulary token, $\mathbf{W} h$}
+
+\begin{itemize}
+  \item $\mathbf{W}$ is a $|V| \times d$ matrix, with one row per token in the vocabulary.
+  \item $\mathbf{W}h$ produces a vector $z \in \mathbb{R}^{|V|}$ of \textbf{logits}, which are raw, unnormalized scores.
+  \item Each logit is a dot product: $z_k = \mathbf{w}_k^\top h$. You can read it as ``how well does token $k$ match this context?''
+\end{itemize}
+
+Logits can be any real number, including negative ones, and they don't sum to anything in particular. So they are not probabilities yet.
+
+\subsubsection*{Step 3: Convert scores to probabilities (softmax)}
+
+$$p(x_t = k \mid x_{<t}) = \frac{\exp(z_k)}{\sum_{j=1}^{|V|} \exp(z_j)}$$
+
+\begin{itemize}
+  \item $\exp(\cdot)$ makes every score positive.
+  \item Dividing by the sum makes all $|V|$ probabilities add up to 1.
+\end{itemize}
+
+\subsubsection*{Worked example}
+
+Context: \textit{``The cat sat on the \_\_\_''}. Assume a toy 4-token vocabulary:
+
+\begin{center}
+\begin{tabular}{lrrr}
+\toprule
+Token & Logit $z_k$ & $\exp(z_k)$ & Probability \\
+\midrule
+mat    & 3.0  & 20.09 & 0.657 \\
+floor  & 2.0  & 7.39  & 0.242 \\
+roof   & 1.0  & 2.72  & 0.089 \\
+banana & $-1.0$ & 0.37 & 0.012 \\
+\midrule
+\textbf{Sum} & & 30.57 & 1.000 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Note that a gap of 1 in the logits becomes a factor of $e \approx 2.7$ in probability. That is why ``mat'' dominates even though its score is only slightly higher than ``floor''.
+
+\subsubsection*{Why this matters for the lecture}
+
+\begin{itemize}
+  \item \textbf{Exact likelihood.} Softmax guarantees that each conditional is a \textit{normalized} distribution. Multiplying these conditionals through the chain rule therefore gives a valid $p(\text{sentence})$.
+  \item \textbf{Training.} If the true next token is ``mat'', the loss at this step is $-\log 0.657 \approx 0.42$ nats. Summing this over all positions gives the NLL.
+  \item \textbf{Generation.} Sampling draws a token from this distribution, appends it to the context, and repeats (ancestral sampling). Temperature divides $z$ by $T$ \textit{before} the softmax.
+  \item \textbf{The ``$|V|$ classes'' note.} Real vocabularies have tens of thousands of tokens or more, so each generation step is a classification over that many classes. This is the same as PixelCNN's 256-way softmax per color channel, just with a much larger set of classes.
+\end{itemize}
+
+% ============================================================
+
+\subsection*{Ordering Image Data for the Chain Rule}
+
+\subsubsection*{Raster Order (Slide 9)}
+
+\textbf{The problem.} The chain rule needs a \textbf{sequence}, but an image is a 2D grid with 3 color channels. Before you can write $p(\mathbf{x}) = \prod_i p(x_i \mid x_{<i})$, you must decide which value counts as $x_1$, which as $x_2$, and so on.
+
+\textbf{The rule.} Raster order flattens the image the way you read a page:
+\begin{enumerate}
+  \item Go through rows from top to bottom.
+  \item Within each row, go through columns from left to right.
+  \item Within each pixel, go through channels in a fixed order: R, then G, then B.
+\end{enumerate}
+
+An $H \times W$ image with $C$ channels becomes a sequence of length
+$$D = H \cdot W \cdot C.$$
+For example, a $32 \times 32$ RGB image gives $D = 32 \cdot 32 \cdot 3 = 3072$ values. The model generates them one at a time.
+
+\textbf{The $3\times3$ diagram.}
+\begin{center}
+\begin{tabular}{|c|c|c|}
+\hline
+1 & 2 & 3 \\ \hline
+4 & 5 & 6 \\ \hline
+7 & 8 & 9 \\ \hline
+\end{tabular}
+\end{center}
+
+When the model predicts pixel \textbf{5}:
+\begin{itemize}
+  \item \textbf{Context (allowed):} pixels 1--4, i.e.\ the whole row above plus pixel 4 to its left.
+  \item \textbf{Future (hidden):} pixels 6--9.
+\end{itemize}
+
+The slide stresses one point: \textbf{pixel 6, the right-hand neighbor, is not context}, even though it is spatially adjacent. Raster order generates it \textit{after} pixel 5, so it doesn't exist yet when pixel 5 is drawn.
+
+\textbf{Generative-model view.} Think of a model painting a face from the top down:
+\begin{itemize}
+  \item When it reaches the left eye, it has already drawn the forehead and hairline (rows above). It can use them to decide where the eye goes.
+  \item It \textbf{cannot} look at the right eye or the mouth, because those come later in the sequence.
+  \item When it later draws the right eye, it \textit{can} look at the left eye. That is how symmetry gets learned.
+\end{itemize}
+
+\textbf{Consequence:} early pixels (top-left) have almost no context, so the model is uncertain there. Late pixels (bottom-right) have nearly the whole image as context. This is the ``order is part of the model'' point from Slide 6.
+
+\subsubsection*{Channel Order Inside One Pixel (Slide 10)}
+
+\textbf{Why not predict R, G, B independently?} The three channels of one pixel are \textbf{strongly correlated}. Suppose you are generating a sky pixel and predict R, G, B independently from the same context:
+\begin{itemize}
+  \item R might sample a sky-like 135.
+  \item G might sample 206.
+  \item B might independently sample 30 instead of $\sim$235.
+\end{itemize}
+The result is a muddy olive pixel in the middle of a blue sky. Each channel was plausible on its own, but the combination is wrong.
+
+\textbf{The fix: chain rule \textit{within} the pixel.}
+$$p(r, g, b \mid \text{past}) = p(r \mid \text{past})\; p(g \mid r, \text{past})\; p(b \mid r, g, \text{past})$$
+
+This is still the exact chain rule, now applied to the three channels of one pixel:
+\begin{enumerate}
+  \item \textbf{Red} sees only previous pixels.
+  \item \textbf{Green} sees previous pixels \textbf{and} the red value just sampled.
+  \item \textbf{Blue} sees previous pixels, red, \textbf{and} green.
+\end{enumerate}
+
+In the sky example, once R $=135$ and G $=206$ are fixed, the model knows the pixel is sky-like, so it concentrates B's probability around 235.
+
+\textbf{The diagram.}
+$$x_{<i} \;\rightarrow\; R \;\rightarrow\; G \;\rightarrow\; B$$
+Each arrow means ``is conditioned on''. This is also why, in the full flattened sequence, the order is $R_1\, G_1\, B_1\, R_2\, G_2\, B_2 \dots$
+
+\textbf{Output distribution per channel.}
+\begin{itemize}
+  \item \textbf{256-way softmax:} intensities are integers 0--255, so each channel's conditional is a categorical distribution over 256 classes. This is the same softmax as in the text model, with 256 ``tokens'' instead of a word vocabulary.
+  \item \textbf{Mixture of logistics (PixelCNN++):} this treats intensity as roughly continuous. It needs fewer parameters and reflects the fact that 200 and 201 are similar colors, which a softmax doesn't know.
+\end{itemize}
+
+\subsubsection*{How Raster Order and Channel Order Connect}
+
+\begin{center}
+\begin{tabular}{lll}
+\toprule
+ & Raster order (Slide 9) & Channel order (Slide 10) \\
+\midrule
+Orders  & pixels across space & channels within one pixel \\
+Rule    & rows top to bottom, columns left to right & R $\rightarrow$ G $\rightarrow$ B \\
+Purpose & give the 2D grid a sequence & capture correlation between colors \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Together they define the full sequence $x_1, \dots, x_D$, so the chain rule and exact likelihood apply to images exactly as they do to text.
+
+% ============================================================
+
+\subsection*{Exact Likelihood (Slide 11)}
+
+\subsubsection*{Equation 1: Log-Likelihood of One Sample}
+
+$$\log p_\theta(\mathbf{x}) = \sum_{i=1}^{D} \log p_\theta(x_i \mid x_{<i})$$
+
+\textbf{Where it comes from.} The chain rule says the joint probability is a \textbf{product} of conditionals:
+$$p_\theta(\mathbf{x}) = \prod_{i=1}^{D} p_\theta(x_i \mid x_{<i})$$
+Take the log of both sides. Since $\log(ab) = \log a + \log b$, the product becomes a \textbf{sum}. Nothing is approximated. That is why the slide says the chain rule is an \textit{identity}: the model's likelihood \textit{is} the joint.
+
+\textbf{Reading each term.}
+\begin{itemize}
+  \item $x_i$ is the actual value at position $i$ (a token, or one color channel of a pixel).
+  \item $p_\theta(x_i \mid x_{<i})$ is the probability the network assigned to that actual value, given everything before it. It is the softmax output, read off at the correct class.
+  \item $\log$ of that probability is always $\le 0$. It is close to 0 when the model was confident and correct, and very negative when the model was surprised.
+\end{itemize}
+
+\textbf{Text example.} Sentence: \textit{``The cat sat''}, with $D = 3$ tokens.
+
+\begin{center}
+\begin{tabular}{clrr}
+\toprule
+Step & Conditional & Probability & $\ln$ \\
+\midrule
+1 & $p(\text{The})$ & 0.05 & $-2.996$ \\
+2 & $p(\text{cat} \mid \text{The})$ & 0.10 & $-2.303$ \\
+3 & $p(\text{sat} \mid \text{The cat})$ & 0.40 & $-0.916$ \\
+\midrule
+ & \textbf{Sum} & & $\mathbf{-6.215}$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Check: $0.05 \times 0.10 \times 0.40 = 0.002$, and $\ln 0.002 = -6.215$. The two routes agree, as they must.
+
+\textbf{Why use the log at all?} A $32 \times 32 \times 3$ image has 3072 factors. If each one is about 0.1, the product is about $10^{-3072}$, which underflows to zero in floating point. The sum of logs is about $-7073$ nats, which is perfectly representable. The log also turns the problem into a sum of per-position terms, which is easy to compute in parallel and differentiate.
+
+\subsubsection*{Equation 2: NLL Loss over a Dataset}
+
+$$\mathcal{L}(\theta) = -\sum_{n=1}^{N} \sum_{i=1}^{D} \log p_\theta\!\left(x_i^{(n)} \mid x_{<i}^{(n)}\right)$$
+
+\textbf{Reading it from the inside out.}
+\begin{enumerate}
+  \item \textbf{Inner sum over $i$:} Equation 1 applied to the $n$-th training example, which gives its total log-likelihood.
+  \item \textbf{Outer sum over $n$:} add that up over all $N$ training examples (all images, or all sentences).
+  \item \textbf{Minus sign:} log-likelihood is something we want to \textit{maximize}, but optimizers \textit{minimize}. Negating it gives the \textbf{negative log-likelihood (NLL)}. Minimizing NLL is the same as maximizing likelihood.
+\end{enumerate}
+The superscript $(n)$ just labels which training example a value comes from.
+
+\textbf{Image example.} Suppose you train a PixelCNN on 50,000 CIFAR-10 images, each with $D = 3072$ values:
+\begin{itemize}
+  \item Every image contributes 3072 terms, one per color channel of every pixel.
+  \item Each term is the \textbf{cross-entropy} of a 256-way softmax against the true intensity.
+  \item $\mathcal{L}$ is the sum of about $50{,}000 \times 3072 \approx 154$ million such terms. In practice you use the minibatch average.
+\end{itemize}
+
+So training an AR model is just \textbf{very many classification problems}, all sharing one network. For each position the question is: given the true prefix, did you put high probability on the true next value?
+
+\textbf{Concrete intuition.} If the model generates a sky region and has learned that blue follows blue, it gives the true next pixel high probability. That term is small, for example $-\log 0.8 = 0.22$. If it put probability 0.01 on the true value, the term is $-\log 0.01 = 4.6$, a large penalty. Gradient descent pushes probability mass toward what actually appears in real data.
+
+\subsubsection*{Why AR Models Give Genuine Maximum Likelihood}
+
+The slide's key box reads: \textit{no variational gap, no discriminator, no unknown partition function; if the network outputs a normalized distribution for every conditional, SGD on $\mathcal{L}$ is genuine maximum likelihood.} This makes two claims:
+\begin{enumerate}
+  \item Other generative model families have an obstacle that keeps them from computing or optimizing $\log p(\mathbf{x})$ directly.
+  \item AR models avoid all three obstacles, \textbf{provided} every conditional is normalized.
+\end{enumerate}
+
+\textbf{``No variational gap'' (vs.\ VAEs).} A VAE generates an image by first sampling a latent $\mathbf{z}$ (pose, style, lighting) and then decoding it. Its likelihood is
+$$p(\mathbf{x}) = \int p(\mathbf{x} \mid \mathbf{z})\, p(\mathbf{z})\, d\mathbf{z}.$$
+This integral covers every possible latent code, so it can't be computed. The VAE instead maximizes a lower bound, the ELBO:
+$$\log p(\mathbf{x}) = \text{ELBO} + \underbrace{\mathrm{KL}\big(q(\mathbf{z}\mid\mathbf{x}) \,\|\, p(\mathbf{z}\mid\mathbf{x})\big)}_{\text{variational gap} \;\ge\; 0}$$
+Improving the ELBO doesn't guarantee you improved the true likelihood, because you might only have shrunk the gap. The number you report is also a bound, not the actual value. An AR model has no $\mathbf{z}$ and no integral: the chain-rule sum \textit{is} $\log p(\mathbf{x})$ exactly.
+
+\textbf{``No discriminator'' (vs.\ GANs).} A GAN generator maps noise to an image, but it never defines $p(\mathbf{x})$ at all. You can't ask ``how likely is this image?'' Training relies on a second network, the discriminator, that tries to tell real images from fakes, and the two networks play a minimax game. There is no likelihood number to report or compare across models, and training can be unstable (oscillation, or mode collapse such as generating only a few kinds of faces). An AR model has one network and one loss to minimize, with no adversary.
+
+\textbf{``No unknown partition function'' (vs.\ energy-based models).} An energy-based model gives each image a score $E(\mathbf{x})$ and defines
+$$p(\mathbf{x}) = \frac{\exp(-E(\mathbf{x}))}{Z}, \qquad Z = \sum_{\text{all possible images}} \exp(-E(\mathbf{x})).$$
+For a $32\times32\times3$ image, $Z$ would be a sum over $256^{3072}$ images. That is impossible to compute, so you never know the actual probability of any image. In an AR model, normalization happens \textbf{locally}, one position at a time. Each softmax sums over only 256 intensities (or $|V|$ tokens), which is cheap. If every local piece sums to 1, the chain rule guarantees the full joint also sums to 1 over all images. The impossible global sum is never needed.
+
+\textbf{``SGD on $\mathcal{L}$ is genuine maximum likelihood.''} ``Genuine'' means you are optimizing the true objective, not a substitute for it:
+\begin{itemize}
+  \item $\mathcal{L}$ \textbf{equals} the exact negative log-likelihood. It is not a bound (VAE), not a game (GAN), and not an approximation with an unknown $Z$ (EBM).
+  \item A minibatch gradient is an unbiased estimate of the full-dataset gradient of that exact NLL.
+  \item Maximizing likelihood is equivalent to minimizing $\mathrm{KL}(p_{\text{data}} \,\|\, p_\theta)$, which is the definition of a good generative model from Slide 2.
+\end{itemize}
+In practice, training a PixelCNN or GPT is just cross-entropy classification at each position. It is stable, it is straightforward to debug, and the final loss is a true likelihood you can convert to bits per dimension and compare across papers.
+
+\textbf{Summary.}
+\begin{center}
+\begin{tabular}{lll}
+\toprule
+Model & What blocks exact $\log p(\mathbf{x})$ & Training objective \\
+\midrule
+VAE & intractable integral over $\mathbf{z}$ & lower bound (ELBO) \\
+GAN & no density defined & adversarial game \\
+EBM & intractable global $Z$ & approximate methods \\
+\textbf{AR} & \textbf{nothing, if normalized and causal} & \textbf{exact NLL} \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\subsubsection*{Meaning of ``Every Conditional Is Normalized''}
+
+It means that \textbf{at every position, for whatever context the model sees, the probabilities it assigns to all possible next values add up to exactly 1.} For continuous values, the density integrates to 1.
+
+Formally, for every position $i$ and every possible prefix $x_{<i}$:
+$$\sum_{k} p_\theta(x_i = k \mid x_{<i}) = 1, \qquad p_\theta(x_i = k \mid x_{<i}) \ge 0.$$
+
+\textbf{Text example.} Context: \textit{``The cat sat on the \_\_\_''}
+
+\begin{center}
+\begin{tabular}{lr}
+\toprule
+Next token & Probability \\
+\midrule
+mat    & 0.657 \\
+floor  & 0.242 \\
+roof   & 0.089 \\
+banana & 0.012 \\
+\midrule
+\textbf{Sum} & \textbf{1.000} \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+This must hold for this context, for \textit{``I love \_\_\_''}, for the empty context at position 1, and for every other prefix. A softmax guarantees it automatically.
+
+\textbf{Image example.} When predicting the red channel of a pixel, given all pixels above and to the left, the 256 probabilities for intensities $0, 1, \dots, 255$ must sum to 1. The same holds for green given red, and blue given red and green.
+
+\textbf{What ``not normalized'' looks like.} Suppose the network outputs raw logits like mat $=3.0$, floor $=2.0$, roof $=1.0$, banana $=-1.0$. These are scores, not probabilities. They don't sum to 1, and one of them is negative. Multiplying such numbers through the chain rule wouldn't give a real $p(\mathbf{x})$.
+
+\textbf{Why normalization is essential for training.} Imagine a text model that outputs raw scores and is trained to ``maximize the score of the true next word.'' It can cheat by pushing \textbf{every} word's score toward infinity. The loss improves, but the model learns nothing. With softmax, probabilities must sum to 1, so the model has a fixed budget: raising $p(\text{``mat''} \mid \text{``The cat sat on the''})$ forces it to lower the probability of ``banana.'' This competition is what forces the model to learn which continuations are actually likely.
+
+\textbf{What counts as normalized.}
+\begin{center}
+\begin{tabular}{ll}
+\toprule
+Data & Normalized conditional \\
+\midrule
+Text token / pixel intensity (0--255) & softmax over $|V|$ or 256 classes \\
+Binary pixel & Bernoulli via sigmoid \\
+Real-valued audio sample & Gaussian or mixture of logistics (integrates to 1) \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\textbf{Implicit second condition: causality.} Each conditional may only see $x_{<i}$. If a mask leaks $x_i$ itself, the model can copy the answer, every factor approaches 1, and the ``likelihood'' becomes meaningless (Slide 40, Q3).
+
+\textbf{Why it matters.} If each local conditional sums to 1, the chain rule guarantees that the full joint $p(\mathbf{x})$ also sums to 1 over \textbf{all} possible sentences or images. That makes it a true probability distribution, so its log is an exact likelihood. You get global normalization for free from cheap local normalization: a 256-way or $|V|$-way sum at each step, instead of the impossible sum over every image that energy-based models would need.
