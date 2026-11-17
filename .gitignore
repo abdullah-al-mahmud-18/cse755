@@ -2,3 +2,5 @@ build/
 .venv/
 client_secret.json
 token.json
+CSE755_midexam_book_extracts.pdf
+CSE755_midexam_book_extracts.tex
