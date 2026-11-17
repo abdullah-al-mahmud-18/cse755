@@ -1,0 +1,2423 @@
+\documentclass[12pt,a4paper]{article}
+\usepackage[margin=0.5in]{geometry}
+\usepackage{amsmath,amssymb,booktabs}
+\usepackage{array}
+\usepackage{graphicx}
+\usepackage[expansion=false]{microtype}
+\usepackage[hidelinks]{hyperref}
+\usepackage{parskip}
+\usepackage{titlesec}
+\usepackage{enumitem}
+\usepackage{xcolor}
+
+
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{0.55em}
+\setcounter{secnumdepth}{0}
+
+\title{CSE755: Generative Machine Learning\\[4pt]\large Mid-Exam Practice Questions with Explained Solutions (Weeks 1--3)}
+\author{}
+\date{}
+\setcounter{tocdepth}{1}
+\emergencystretch=3em
+\begin{document}
+\maketitle
+\tableofcontents
+\newpage
+
+% ============================================================
+\section{How to use this set}
+
+This set has 19 exam-style questions. Together they cover everything in the Week 1--3 lecture slides and hand notes, and nothing outside them. The book extracts were used only to check that the explanations match the standard results.
+
+Every question has four parts.
+
+\begin{enumerate}[nosep]
+  \item \textbf{Question.} The question as it could appear on the exam.
+  \item \textbf{What the question is asking.} The same question in plain words.
+  \item \textbf{Concepts you need.} Each idea the answer depends on, explained from scratch. If an idea was already explained in an earlier question, you get a link back to it instead of a repeat.
+  \item \textbf{Solution.} The answer, worked step by step, with the reasoning in plain words.
+\end{enumerate}
+
+\textbf{Suggested plan (about 8.5 hours).} The early questions take longer because they introduce the most concepts. Later questions reuse them.
+
+\begin{center}
+\begin{tabular}{@{}l>{\raggedright\arraybackslash}p{0.62\textwidth}r@{}}
+\toprule
+Questions & Topic & Time \\
+\midrule
+1--8 & Week 1: probability language, likelihood, KL, latent variables, mixtures & 3 h 50 min \\
+9--14 & Week 2: chain rule, PixelRNN, PixelCNN, sampling & 2 h 35 min \\
+15--19 & Week 3: the pen story, ELBO, KL, reparameterization, VAE variants & 2 h 20 min \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Try each question on paper before reading the solution. If you get stuck, read only the \emph{Concepts} part and try again.
+
+\textbf{Constants used throughout} (the same ones the course uses):
+\[
+\tfrac12\log(2\pi)\approx 0.919,\qquad \log 2\approx 0.693,\qquad \tfrac12\log 2\approx 0.347 .
+\]
+Here $\log$ means the natural logarithm (base $e$, results in ``nats''). $\log_2$ is the base-2 logarithm (results in ``bits'').
+
+\textbf{Symbols used all term.}
+\begin{center}
+\begin{tabular}{@{}l>{\raggedright\arraybackslash}p{0.75\textwidth}@{}}
+\toprule
+Symbol & Meaning in plain words \\
+\midrule
+$x$ & one thing the model makes or scores: an image, a sentence, an audio clip \\
+$y$ & a label, such as ``cat'' or ``news article'' \\
+$z$ & a hidden (latent) variable: something the model uses inside but that is never in the dataset \\
+$\theta$ & the model's knobs (its parameters, for example the weights of a network) \\
+$\mathcal{D}$ & the training set \\
+$N$ & how many training examples there are \\
+$D$ & how many numbers make up one example (for example, pixels times colour channels) \\
+$p(a)$ & how likely $a$ is \\
+$p(a\mid b)$ & how likely $a$ is once we already know $b$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\newpage
+% ============================================================
+\part{Week 1: Fundamentals of Generative Models}
+% ============================================================
+
+\section{Question 1: The three jobs and the map of model families}
+
+\subsection{Question}
+
+\begin{enumerate}[label=(\alph*)]
+  \item Name the three questions a generative model can answer about data. Write the mathematical object that goes with each one.
+  \item For each family below, say what it gives you for $p_\theta(x)$ (an exact number, a lower bound, a number known only up to a constant, or no number at all) and how a new sample is drawn: autoregressive model (PixelCNN, GPT), variational autoencoder (VAE), GAN, normalizing flow, diffusion model, energy-based model.
+  \item True or false? Give a one-line reason for each.
+  \begin{enumerate}[label=(\roman*)]
+    \item A GAN trained on faces can report its bits per dimension on a test set.
+    \item A plain autoencoder that squeezes an image into 16 numbers and rebuilds it is a generative model.
+    \item Taking a training photo and adding Gaussian noise gives a sample from the model.
+    \item A model with higher likelihood always produces sharper-looking images.
+    \item An energy-based model cannot tell you $p(x)$, but it can still tell you which of two images it finds more likely.
+  \end{enumerate}
+  \item Explain the difference between an \emph{implicit} model and an \emph{unnormalized} model.
+\end{enumerate}
+
+\subsection{What the question is asking}
+
+Every generative model is built to do some jobs well and other jobs badly. Part (a) asks you to name the jobs. Part (b) asks which family is good at which job. Part (c) checks five common confusions. Part (d) asks for two words used in the family table and what each one means.
+
+\subsection{Concepts you need}
+
+\subsubsection{Concept 1.1: What generative modeling is trying to do}\label{c1-1}
+
+Imagine you have thousands of song recordings. Generative modeling means building a ``song machine'' that has learned what songs sound like in general. Two equations set this up.
+
+\textbf{Equation: the dataset}
+\[
+\mathcal{D}=\{x^{(1)},\dots,x^{(N)}\}
+\]
+\begin{itemize}[nosep]
+  \item \textbf{Symbols:} $\mathcal{D}$ is the training set. $x^{(1)}$ is the first example (the first song) and $x^{(N)}$ is the last. The number in brackets is a position, not a power.
+  \item \textbf{What it says:} ``Here is my pile of $N$ examples.''
+  \item \textbf{When it holds:} The course assumes every example came from the same unknown source, each one picked separately (this is the i.i.d.\ assumption, see \hyperref[c3-3]{Concept 3.3}).
+\end{itemize}
+
+\textbf{Equation: the true rule and the model's guess}
+\[
+p_{\text{data}}(x)\quad\text{and}\quad p_\theta(x)
+\]
+\begin{itemize}[nosep]
+  \item \textbf{Symbols:} $p_{\text{data}}(x)$ is the real, unknown rule for how likely each song is in the world. $p_\theta(x)$ is the model's guess at that rule. $\theta$ stands for all the knobs of the model.
+  \item \textbf{What it says:} We never see $p_{\text{data}}$ itself, only examples drawn from it. Training means turning the knobs $\theta$ until $p_\theta$ behaves like $p_{\text{data}}$.
+  \item \textbf{Special values:} If $p_\theta(x)=0$ for a song that really exists, the model calls a real thing impossible. That is the worst mistake, because $\log 0=-\infty$ and training punishes it without limit.
+\end{itemize}
+
+\textbf{Equation: drawing a new item}
+\[
+x\sim p_\theta
+\]
+\begin{itemize}[nosep]
+  \item \textbf{Symbols:} The wavy sign $\sim$ means ``is drawn from''.
+  \item \textbf{What it says:} ``Run the machine and get a new song.'' Songs the model finds likely come out often. Songs with $p_\theta$ near 0 almost never come out.
+\end{itemize}
+
+\subsubsection{Concept 1.2: The three questions}\label{c1-2}
+
+\begin{center}
+\begin{tabular}{@{}>{\raggedright\arraybackslash}p{0.2\textwidth}>{\raggedright\arraybackslash}p{0.42\textwidth}>{\raggedright\arraybackslash}p{0.28\textwidth}@{}}
+\toprule
+Job & Plain meaning & Written as \\
+\midrule
+1. Density & How believable is this item? & $p_\theta(x)=\,?$ \\
+2. Sample & How do I make a brand-new item? & $x\sim p_\theta$ \\
+3. Represent & What hidden factors explain this item? & a code $z$ with $x\approx g(z)$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\textbf{Equation: rebuilding from a short description}
+\[
+x\approx g(z)
+\]
+\begin{itemize}[nosep]
+  \item \textbf{Symbols:} $x$ is the real item, for example a face photo. $z$ is a short hidden description, like a recipe card (``smiling, facing left, dim light''). $g$ turns the recipe card back into a picture.
+  \item \textbf{What it says:} A big, complicated item can be roughly rebuilt from a much shorter description.
+  \item \textbf{Special values:} If $z$ is too short, details are lost and the rebuilt face is poor. If $z$ is as big as $x$, nothing has been summarized.
+\end{itemize}
+
+``Tractable'' means ``can be computed in a reasonable time''. No family does all three jobs easily.
+
+\subsubsection{Concept 1.3: The map of model families}\label{c1-3}
+
+\begin{center}
+\begin{tabular}{@{}>{\raggedright\arraybackslash}p{0.2\textwidth}>{\raggedright\arraybackslash}p{0.24\textwidth}>{\raggedright\arraybackslash}p{0.24\textwidth}>{\raggedright\arraybackslash}p{0.22\textwidth}@{}}
+\toprule
+Family (week) & What it gives for $p_\theta(x)$ & How a sample is drawn & Hidden code $z$ \\
+\midrule
+Autoregressive (W2) & exact, by the chain rule & one piece at a time & none needed \\
+VAE (W3) & a lower bound (the ELBO) & draw $z$, then decode once & yes, continuous \\
+GAN (W4) & no number at all & one pass through the generator & noise input \\
+Diffusion (W5--6) & a bound, or a ``score'' & many small denoising steps & a noise path \\
+Energy-based (W7) & known only up to a constant & slow random-walk sampling & optional \\
+Flow (W8) & exact, through the change of variables & one invertible pass & the base noise \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+The families are split by the training signal they use, not by how good their pictures look.
+
+\subsubsection{Concept 1.4: Implicit versus unnormalized}\label{c1-4}
+
+\textbf{Implicit} means the model only gives you a sampler, $x=G(z)$. Feed in noise and an image comes out, but the model never gives a number $p(x)$. A GAN is implicit.
+
+\textbf{Unnormalized} means the model gives a score that is \emph{proportional} to the probability, but not the probability itself.
+
+\textbf{Equation: unnormalized density}
+\[
+\tilde p(x)=e^{-E(x)},\qquad p(x)=\frac{\tilde p(x)}{Z},\qquad Z=\int \tilde p(x)\,dx
+\]
+\begin{itemize}[nosep]
+  \item \textbf{Symbols:} $E(x)$ is an ``energy'' the network computes for image $x$. Low energy means the image is believable. $\tilde p(x)$ is the score. $Z$ is the total score added over every possible image (the ``partition function'').
+  \item \textbf{What it says:} To turn the score into a probability, you must divide by the total score over all images.
+  \item \textbf{When it holds:} Always, but $Z$ is a sum over every possible image. For a $32\times32$ colour image that is $256^{3072}$ images, so $Z$ cannot be computed.
+  \item \textbf{Special values:} The ratio of two images' probabilities does not need $Z$, because it cancels: $p(a)/p(b)=\tilde p(a)/\tilde p(b)$.
+\end{itemize}
+
+\subsubsection{Concept 1.5: Four things not to confuse}\label{c1-5}
+
+\begin{itemize}[nosep]
+  \item \textbf{Autoencoder is not a generative model.} A plain autoencoder maps $x\to z\to\hat x$. It has no rule $p(z)$ for picking codes, and it gives no density. A VAE adds both.
+  \item \textbf{A GAN discriminator is not just a classifier of real data.} It is trained against a generator that keeps changing.
+  \item \textbf{Sampling is not ``add noise to a training image''.} A sample is a fresh draw from the model's distribution. Adding noise to a training photo is data augmentation.
+  \item \textbf{Likelihood is not picture quality.} Many VAEs have good likelihood and blurry pictures. GANs have sharp pictures and no likelihood at all.
+\end{itemize}
+
+\subsection{Solution}
+
+\textbf{(a)} The three questions are:
+\begin{enumerate}[nosep]
+  \item \emph{Density:} ``How believable is this item?'' The object is the number $p_\theta(x)$.
+  \item \emph{Sampling:} ``Make me a new item.'' The object is a draw $x\sim p_\theta$.
+  \item \emph{Representation:} ``What hidden factors explain this item?'' The object is a code $z$ with $x\approx g(z)$.
+\end{enumerate}
+
+\textbf{(b)} Read straight off the table in \hyperref[c1-3]{Concept 1.3}.
+\begin{itemize}[nosep]
+  \item Autoregressive: exact $p_\theta(x)$. Sampling is one piece at a time (one token or one pixel channel per step), so it is slow.
+  \item VAE: only a lower bound on $\log p_\theta(x)$. Sampling is fast: draw $z$ from the prior, decode once.
+  \item GAN: no number at all. Sampling is one pass through the generator.
+  \item Flow: exact $p_\theta(x)$. Sampling is one pass through an invertible network.
+  \item Diffusion: a bound (or a score). Sampling takes many denoising steps.
+  \item Energy-based: $p_\theta(x)$ only up to the unknown constant $Z$. Sampling needs slow random-walk methods.
+\end{itemize}
+
+\textbf{(c)}
+\begin{enumerate}[label=(\roman*),nosep]
+  \item \textbf{False.} Bits per dimension needs $-\log_2 p_\theta(x)$, and a GAN never defines $p_\theta(x)$. It is implicit.
+  \item \textbf{False.} It has no rule $p(z)$ for picking a fresh code, so you cannot draw a new image from it, and it gives no density.
+  \item \textbf{False.} That is a modified training photo (data augmentation). A sample must be a fresh draw from $p_\theta$.
+  \item \textbf{False.} Likelihood and sharpness are different goals. A VAE can score well and still look blurry.
+  \item \textbf{True.} To compare image $a$ with image $b$ you need $p(a)/p(b)$. The unknown $Z$ appears in both and cancels, leaving $\tilde p(a)/\tilde p(b)=e^{-E(a)+E(b)}$.
+\end{enumerate}
+
+\textbf{(d)} An \emph{implicit} model is only a sampler: noise goes in and an image comes out, but there is no formula for $p(x)$ at all (GAN). An \emph{unnormalized} model does have a formula, $\tilde p(x)=e^{-E(x)}$, but it is missing the dividing constant $Z$. So it can rank images but cannot give their exact probabilities (energy-based model).
+
+% ============================================================
+\newpage
+\section{Question 2: Reading a joint table from a text generator}
+
+\subsection{Question}
+
+\begin{enumerate}[label=(\alph*)]
+  \item Two model outputs. Which one is illegal, and why?
+  \begin{enumerate}[label=(\roman*)]
+    \item A pixel model says the red channel of a pixel takes the value 128 with probability $p(x=128)=1.2$.
+    \item An audio model says the loudness $a$ of a sample has density $p(a)=4$ for every $a$ between 0 and 0.25, and 0 elsewhere.
+  \end{enumerate}
+  For the model in (ii), find the probability that the loudness lands between 0.10 and 0.15, and the probability that it is \emph{exactly} 0.10.
+  \item A text generator first picks a style $y\in\{\text{news},\text{story}\}$ and then writes the first word $x\in\{\text{The},\text{Once},\text{In}\}$. The joint probabilities are:
+  \begin{center}
+  \begin{tabular}{@{}lccc@{}}
+  \toprule
+   & The & Once & In \\
+  \midrule
+  news & 0.36 & 0.03 & 0.21 \\
+  story & 0.12 & 0.24 & 0.04 \\
+  \bottomrule
+  \end{tabular}
+  \end{center}
+  Find $p(x)$ for each word, $p(y=\text{story})$, $p(y=\text{story}\mid x=\text{Once})$ and $p(x=\text{Once}\mid y=\text{story})$.
+  \item Check the product rule both ways for the pair (story, Once).
+  \item Suppose you only knew $p(x=\text{Once}\mid y=\text{story})=0.6$, $p(y=\text{story})=0.4$ and $p(x=\text{Once})=0.27$. Use Bayes' rule to get $p(y=\text{story}\mid x=\text{Once})$.
+  \item Are the style and the first word independent? Show it with numbers.
+  \item The generator writes ``style first, then word''. A style classifier reads a word and guesses the style. Which conditional does each one use?
+\end{enumerate}
+
+\subsection{What the question is asking}
+
+Part (a) checks the difference between a probability (for separate values like pixel levels) and a density (for smooth values like loudness). Parts (b) to (e) ask you to read one table in four ways: everything together, one thing alone, one thing inside a group, and the ``flipped'' question. Part (f) links those readings to generating versus classifying.
+
+\subsection{Concepts you need}
+
+\subsubsection{Concept 2.1: Random variables, probabilities and densities}\label{c2-1}
+
+A \textbf{random variable} turns ``something that comes out by chance'' into a number. Before a model generates a pixel, ``the brightness of this pixel'' is a random variable $X$. After generation it is a plain number $x$, for example 173. We write $p(x)$ for the rule saying how likely each value is.
+
+There are two kinds, each with its own rule.
+
+\textbf{Equation (discrete: a list of separate values)}
+\[
+p(x)\ge 0\quad\text{and}\quad \sum_x p(x)=1
+\]
+\begin{itemize}[nosep]
+  \item \textbf{Symbols:} $x$ is one possible value, for example a pixel level from 0 to 255. $\sum_x$ means ``add over every possible value''.
+  \item \textbf{What it says:} No chance is negative, and all chances add to exactly 1 (something must come out).
+  \item \textbf{When it holds:} For separate values: pixel levels, tokens in a vocabulary, labels.
+  \item \textbf{Special values:} A single $p(x)$ can never be above 1, because the total is only 1.
+\end{itemize}
+
+\textbf{Equation (continuous: smooth values)}
+\[
+p(x)\ge 0\quad\text{and}\quad \int p(x)\,dx=1
+\]
+\begin{itemize}[nosep]
+  \item \textbf{Symbols:} $x$ is a value on a smooth scale, like the exact loudness of an audio sample. $p(x)$ is now a \emph{density}, the height of a curve. $\int\dots dx$ means ``the area under the curve''.
+  \item \textbf{What it says:} The curve never goes below zero and the total area under it is 1.
+  \item \textbf{Special values:} The height $p(x)$ \emph{can} be bigger than 1. If all the area is squeezed into a narrow strip, the strip must be tall to still have area 1. Only the \emph{area over a range} is a probability:
+  \[
+  P(a\le x\le b)=\int_a^b p(x)\,dx .
+  \]
+  The chance of landing on one exact point is 0, because a single point has no width.
+\end{itemize}
+
+\subsubsection{Concept 2.2: Joint, marginal and conditional}\label{c2-2}
+
+Let $x$ be an image and $y$ a label (cat or dog).
+
+\textbf{Joint} $p(x,y)$: the chance of this image \emph{and} this label together. In a table, every inside cell is a joint probability.
+
+\textbf{Equation (marginal)}
+\[
+p(x)=\sum_y p(x,y)
+\]
+\begin{itemize}[nosep]
+  \item \textbf{Symbols:} $\sum_y$ means ``add over every label''.
+  \item \textbf{What it says:} If you do not care about the label, add the image's chances across all labels. This is called ``summing the label away''. In a table you add down a column or along a row, and the totals sit in the margins, hence the name.
+  \item \textbf{When it holds:} Always. For smooth variables the sum becomes an integral.
+\end{itemize}
+
+\textbf{Equation (conditional)}
+\[
+p(y\mid x)=\frac{p(x,y)}{p(x)}
+\]
+\begin{itemize}[nosep]
+  \item \textbf{Symbols:} $p(y\mid x)$ reads ``chance of label $y$ given that we already know the image is $x$''. The bar ``$\mid$'' means ``given''.
+  \item \textbf{What it says:} Zoom in on only the cases where $x$ happened, and ask what fraction of them have label $y$.
+  \item \textbf{When it holds:} Only when $p(x)>0$. You cannot zoom in on a group that never happens.
+  \item \textbf{Special values:} If $p(x)=0$ it is undefined (division by zero). If $p(x,y)=0$ but $p(x)>0$, the answer is 0.
+\end{itemize}
+
+\subsubsection{Concept 2.3: The product rule}\label{c2-3}
+
+\[
+p(x,y)=p(y\mid x)\,p(x)=p(x\mid y)\,p(y)
+\]
+\begin{itemize}[nosep]
+  \item \textbf{What it says:} ``Image and label together'' equals ``chance of the image'' times ``chance of the label given that image''. You can also go label first, then image given label.
+  \item \textbf{When it holds:} Always. It is just the conditional definition rearranged.
+  \item \textbf{Why it matters:} The two ways of splitting lead to two kinds of model. Learning $p(y\mid x)$ is the \emph{discriminative} path (read an image, name it). Learning $p(x\mid y)\,p(y)$ is the \emph{generative} path (pick a label, then make an image). See \hyperref[c6-1]{Concept 6.1}.
+\end{itemize}
+
+\subsubsection{Concept 2.4: Bayes' rule}\label{c2-4}
+
+\[
+\underbrace{p(y\mid x)}_{\text{posterior}}=\frac{\overbrace{p(x\mid y)}^{\text{likelihood}}\;\overbrace{p(y)}^{\text{prior}}}{\underbrace{p(x)}_{\text{evidence}}},\qquad p(x)=\sum_y p(x\mid y)\,p(y)
+\]
+\begin{itemize}[nosep]
+  \item \textbf{Symbols:}
+  \begin{itemize}[nosep]
+    \item $p(y)$, the \emph{prior}: your belief about the label before seeing the item.
+    \item $p(x\mid y)$, the \emph{likelihood}: how believable the item is if the label were $y$.
+    \item $p(x)$, the \emph{evidence}: how likely the item is overall, across all labels.
+    \item $p(y\mid x)$, the \emph{posterior}: your updated belief after seeing the item.
+  \end{itemize}
+  \item \textbf{What it says:} Start with your old belief, multiply by how well the item fits each label, then divide by the total so the answers add to 1. It flips ``given the label, how likely the item'' into ``given the item, how likely the label''.
+  \item \textbf{When it holds:} Always, as long as $p(x)>0$. It comes straight from the product rule.
+  \item \textbf{Special values:} If the prior $p(y)=0$, the posterior is 0: a label you ruled out stays ruled out. If the likelihood is 0, the posterior is 0. If all priors are equal, the likelihood alone decides.
+  \item \textbf{Common mix-up:} $p(x\mid y)$ and $p(y\mid x)$ are different questions with different answers.
+\end{itemize}
+
+The same four names are reused for latent variables later, with a hidden code $z$ in place of $y$ (see \hyperref[c7-2]{Concept 7.2}).
+
+\subsubsection{Concept 2.5: Independence}\label{c2-5}
+
+\[
+p(x,y)=p(x)\,p(y),\qquad\text{equivalently}\qquad p(x\mid y)=p(x)
+\]
+\begin{itemize}[nosep]
+  \item \textbf{What it says:} Two things are independent if knowing one tells you nothing about the other. Then the chance of both is the product of the separate chances.
+  \item \textbf{When it holds:} Only when the two really do not influence each other. It is something you check or assume, not something true by default. The ``equivalently'' form needs $p(y)>0$.
+  \item \textbf{How to test it:} If even one cell of a table breaks $p(x,y)=p(x)p(y)$, the two are \emph{not} independent.
+\end{itemize}
+
+\subsection{Solution}
+
+\textbf{(a)} (i) is illegal. A pixel level is a separate value, so $p(128)$ is a true probability and can never exceed 1. (ii) is legal. Loudness is a smooth value, so $p(a)=4$ is a density (a curve height), and the area under it is $4\times 0.25=1$, as required.
+
+Probability of loudness between 0.10 and 0.15 is the area of that strip:
+\[
+P(0.10\le a\le 0.15)=4\times(0.15-0.10)=4\times 0.05=0.2 .
+\]
+The probability of exactly 0.10 is 0. A single point has zero width, so zero area.
+
+\textbf{(b)} Marginals, by adding each column:
+\[
+p(\text{The})=0.36+0.12=0.48,\quad p(\text{Once})=0.03+0.24=0.27,\quad p(\text{In})=0.21+0.04=0.25 .
+\]
+These add to 1, as they must. Adding the story row: $p(\text{story})=0.12+0.24+0.04=0.40$, so $p(\text{news})=0.60$.
+
+Conditionals, by zooming in:
+\[
+p(\text{story}\mid\text{Once})=\frac{p(\text{story},\text{Once})}{p(\text{Once})}=\frac{0.24}{0.27}\approx 0.889,
+\qquad
+p(\text{Once}\mid\text{story})=\frac{0.24}{0.40}=0.6 .
+\]
+In words: among all openings that start with ``Once'', about 89\% are stories. Among all stories, 60\% start with ``Once''. Different questions, different answers.
+
+\textbf{(c)} Word first: $p(\text{story}\mid\text{Once})\,p(\text{Once})=0.889\times0.27=0.24$. Style first: $p(\text{Once}\mid\text{story})\,p(\text{story})=0.6\times0.4=0.24$. Both rebuild the joint cell 0.24.
+
+\textbf{(d)}
+\[
+p(\text{story}\mid\text{Once})=\frac{p(\text{Once}\mid\text{story})\,p(\text{story})}{p(\text{Once})}=\frac{0.6\times0.4}{0.27}=\frac{0.24}{0.27}\approx0.889 .
+\]
+It matches part (b). Reading: before seeing the word you believed ``story'' with 40\%. ``Once'' is far more common in stories, so this clue pushes your belief up to about 89\%.
+
+\textbf{(e)} Test one cell: $p(\text{The})\,p(\text{news})=0.48\times0.6=0.288$, but the table says $p(\text{news},\text{The})=0.36$. They differ, so the two are \emph{not} independent. Knowing the style changes which first word is likely, which is exactly what we want from a text generator.
+
+\textbf{(f)} The generator follows the arrow ``style $\to$ word''. It uses the prior $p(y)$ to pick a style and then $p(x\mid y)$ to write a word. The classifier goes against the arrow. It uses the posterior $p(y\mid x)$.
+
+% ============================================================
+\newpage
+\section{Question 3: A hidden scene, two pixels, and the i.i.d.\ assumption}
+
+\subsection{Question}
+
+A tiny image generator first picks a hidden scene $z\in\{\text{day},\text{night}\}$ with $p(\text{day})=0.7$. Given the scene, each of two pixels $x_1,x_2$ is bright or dark \emph{independently}, with
+\[
+p(\text{bright}\mid\text{day})=0.9,\qquad p(\text{bright}\mid\text{night})=0.2 .
+\]
+\begin{enumerate}[label=(\alph*)]
+  \item Write $p(x_1,x_2\mid z)$ and the full joint $p(x_1,x_2,z)$.
+  \item Compute $p(x_1=\text{bright})$ and $p(x_1=\text{bright},x_2=\text{bright})$.
+  \item Are $x_1$ and $x_2$ independent? Are they independent given $z$? Compute $p(x_2=\text{bright}\mid x_1=\text{bright})$ and explain the result using $p(\text{day}\mid x_1=\text{bright})$.
+  \item Which of these training sets are i.i.d.? (i) 10,000 photos shuffled from one photo collection. (ii) 300 back-to-back frames from one video. (iii) Half chest X-rays, half holiday photos, fitted with one shared set of knobs $\theta$.
+  \item Write the likelihood of a dataset under the i.i.d.\ assumption. Then say why the pixels \emph{inside} one image are not independent, and why this matters for generative modeling.
+\end{enumerate}
+
+\subsection{What the question is asking}
+
+The hidden scene acts like a ``middleman''. Once you know the scene, the two pixels have nothing more to say to each other. If you do not know it, one pixel gives a hint about the scene, and so about the other pixel. The question asks you to show this with numbers. Then it asks which training sets fit the course's ``i.i.d.'' assumption.
+
+\subsection{Concepts you need}
+
+\textbf{Already explained:} independence (\hyperref[c2-5]{Concept 2.5}), joint, marginal, conditional (\hyperref[c2-2]{Concept 2.2}), Bayes' rule (\hyperref[c2-4]{Concept 2.4}).
+
+\subsubsection{Concept 3.1: Conditional independence}\label{c3-1}
+
+\[
+X\perp Y\mid Z\quad\text{means}\quad p(x,y\mid z)=p(x\mid z)\,p(y\mid z)
+\]
+\begin{itemize}[nosep]
+  \item \textbf{Symbols:} $X\perp Y\mid Z$ reads ``$X$ is independent of $Y$, given $Z$''. $z$ is the value of a third thing we already know.
+  \item \textbf{What it says:} The same product rule as plain independence, but every term is computed inside the world where $z$ is already known.
+  \item \textbf{When it holds:} When $Z$ fully explains the link between $X$ and $Y$. It needs $p(z)>0$.
+  \item \textbf{Key warning (mistake 5 in the hand notes):} Independent \emph{given} $z$ does \textbf{not} mean independent \emph{overall}. Ignoring $z$ means mixing all scenes together. Day images have two bright pixels and night images have two dark pixels, so across all images the two pixels tend to agree. They look connected only because they share a hidden cause.
+\end{itemize}
+
+\subsubsection{Concept 3.2: A latent variable as a shared hidden cause}\label{c3-2}
+
+A \textbf{latent variable} is a hidden cause that the model uses but that is never written in the dataset. ``Latent'' just means hidden. Here $z$ (the scene) is latent: the training set contains only pixels.
+
+Generative models use exactly this trick. In a photo, neighbouring pixels are linked (blue sky next to blue sky). A hidden cause such as ``beach at noon'' explains why. Given the cause, each pixel is easy to describe on its own. Without it, the pixels are linked. The full treatment is in \hyperref[c7-1]{Concept 7.1}.
+
+\subsubsection{Concept 3.3: The i.i.d.\ assumption}\label{c3-3}
+
+i.i.d.\ means ``independent and identically distributed''. It describes how we assume the training set was collected.
+
+\[
+p(\mathcal{D}\mid\theta)=\prod_{n=1}^{N}p\big(x^{(n)}\mid\theta\big)
+\]
+\begin{itemize}[nosep]
+  \item \textbf{Symbols:} $\mathcal{D}$ is the whole dataset. $\theta$ is the model's knobs. $x^{(n)}$ is the $n$-th example. The big $\prod$ means ``multiply all of these together, from 1 to $N$''.
+  \item \textbf{What it says:} The chance of the whole dataset is the chance of example 1, times the chance of example 2, and so on.
+  \item \textbf{Two assumptions are packed in:}
+  \begin{itemize}[nosep]
+    \item \emph{Identical:} every example comes from the same model with the same knobs $\theta$.
+    \item \emph{Independent:} examples do not affect each other, so multiplying is allowed.
+  \end{itemize}
+  \item \textbf{When it fails:} When examples are linked (back-to-back video frames), or when they come from different sources that really need different knobs.
+  \item \textbf{Special values:} If any single factor is 0, the whole product is 0: one impossible example makes the whole dataset impossible. With large $N$ the product shrinks toward 0 and a computer rounds it to 0 (underflow). This is why we take logs (\hyperref[c4-2]{Concept 4.2}).
+\end{itemize}
+
+Independence is assumed \emph{between} images, not \emph{inside} one image.
+
+\subsubsection{Concept 3.4: Plate notation}\label{c3-4}
+
+A plate is a box in a diagram that means ``repeat what is inside $N$ times''. For a latent-variable model, the box holds $z_n$ (open circle: hidden) and $x_n$ (shaded circle: observed). The knobs $\theta$ sit outside the box, because one model is shared by every example. Each $z_n$ explains only its own $x_n$. Given $\theta$, the examples are independent, so the dataset likelihood is a product:
+\[
+p(\mathcal{D}\mid\theta)=\prod_{n=1}^{N}\int p(x_n\mid z_n,\theta)\,p(z_n\mid\theta)\,dz_n .
+\]
+Each factor is the ``add over every hidden cause'' of \hyperref[c7-2]{Concept 7.2}, done once per example.
+
+\subsection{Solution}
+
+\textbf{(a)} Given the scene, the pixels are independent, so
+\[
+p(x_1,x_2\mid z)=p(x_1\mid z)\,p(x_2\mid z),\qquad
+p(x_1,x_2,z)=p(z)\,p(x_1\mid z)\,p(x_2\mid z).
+\]
+
+\textbf{(b)} Remove $z$ by adding over both scenes, weighting by how often each happens:
+\[
+p(x_1=\text{bright})=0.7\times0.9+0.3\times0.2=0.63+0.06=0.69 .
+\]
+\[
+p(x_1=\text{b},x_2=\text{b})=0.7\times0.9\times0.9+0.3\times0.2\times0.2=0.567+0.012=0.579 .
+\]
+
+\textbf{(c)} \emph{Overall:} by symmetry $p(x_2=\text{bright})=0.69$ too, so $p(x_1=\text{b})\,p(x_2=\text{b})=0.69\times0.69=0.476$. The joint is 0.579. They differ, so the pixels are \textbf{not} independent.
+
+\emph{Given $z$:} yes, by construction. For example, given day, $p(x_2=\text{b}\mid x_1=\text{b},\text{day})=0.9=p(x_2=\text{b}\mid\text{day})$. Seeing $x_1$ adds nothing once the scene is known.
+
+\emph{The conditional:}
+\[
+p(x_2=\text{b}\mid x_1=\text{b})=\frac{0.579}{0.69}\approx0.839 .
+\]
+This is higher than 0.69. Why? A bright first pixel is evidence for daytime. By Bayes' rule,
+\[
+p(\text{day}\mid x_1=\text{b})=\frac{0.9\times0.7}{0.69}=\frac{0.63}{0.69}\approx0.913 .
+\]
+So after seeing one bright pixel, you are 91\% sure it is day (up from 70\%), and you predict the second pixel with mostly day odds:
+\[
+0.913\times0.9+0.087\times0.2\approx0.821+0.017=0.839 .
+\]
+This matches. The first pixel ``talks'' to the second only through the hidden scene.
+
+\textbf{(d)}
+\begin{enumerate}[label=(\roman*),nosep]
+  \item \textbf{i.i.d.} Each photo was picked separately from one collection.
+  \item \textbf{Not independent.} Frame 101 is almost a copy of frame 100.
+  \item \textbf{Not identical.} X-rays and holiday photos come from very different sources, so one shared $\theta$ for both breaks the ``same model for every example'' part.
+\end{enumerate}
+
+\textbf{(e)} Under i.i.d., $p(\mathcal{D}\mid\theta)=\prod_{n=1}^{N}p(x^{(n)}\mid\theta)$ (with a latent variable, each factor is an integral over $z_n$, as in \hyperref[c3-4]{Concept 3.4}).
+
+Inside one image the pixels are \emph{not} independent: if one pixel is blue sky, its neighbour is probably blue sky too. If a model treated pixels as independent, every pixel would be drawn on its own and the sample would look like TV static. Capturing how pixels depend on each other is the real job of a generative model. Week 2 does it with the chain rule. Week 3 does it with a hidden code $z$, just like the scene in this question.
+
+% ============================================================
+\newpage
+\section{Question 4: Likelihood and maximum likelihood on a pixel machine}
+
+\subsection{Question}
+
+A toy image machine draws $2\times2$ black-and-white images. Each pixel is white (1) with probability $\theta$, independently. The training set has three images, read in raster order:
+\[
+1101,\qquad 1111,\qquad 0111 .
+\]
+\begin{enumerate}[label=(\alph*)]
+  \item Write the likelihood $L(\theta)$ and the log-likelihood $\ell(\theta)$.
+  \item Find $\hat\theta_{\text{ML}}$ by setting the derivative to zero, and confirm it is a maximum.
+  \item Compute $L(0.5)$ and $L(\hat\theta_{\text{ML}})$. How many times better does $\hat\theta_{\text{ML}}$ explain the data?
+  \item A classmate says: ``$L(\theta)$ is the probability of $\theta$, so its area over $\theta\in[0,1]$ must be 1.'' In fact the area is about 0.00117. What is wrong with the claim? If someone maximizes $p(\theta\mid\mathcal{D})$ and calls it maximum likelihood, what did they forget?
+  \item Suppose instead all 12 training pixels had been white. What is $\hat\theta_{\text{ML}}$? What probability does the model give a test image with one black pixel, and what is its log?
+  \item A real dataset has 10,000 images of $28\times28$ pixels, and the model gives each true pixel probability about 0.8. Why do we work with $\ell(\theta)$ instead of $L(\theta)$? Estimate $\ell$.
+\end{enumerate}
+
+\subsection{What the question is asking}
+
+We have a machine with one knob, $\theta$. We look at real training images and ask which knob setting makes these images most believable. That is maximum likelihood. Parts (d) to (f) check three classic traps: likelihood is not a probability over $\theta$, maximum likelihood can call real things impossible, and raw likelihoods are too small for a computer.
+
+\subsection{Concepts you need}
+
+\textbf{Already explained:} the i.i.d.\ product (\hyperref[c3-3]{Concept 3.3}).
+
+\subsubsection{Concept 4.1: Probability versus likelihood}\label{c4-1}
+
+Both use the same formula, $p(\text{data}\mid\theta)$, read from opposite sides.
+
+\begin{itemize}[nosep]
+  \item \textbf{Probability:} the knob $\theta$ is fixed and the images vary. ``The knob is at 0.75. How likely is this image?'' Adding over all possible images gives 1, because the machine must make something. This is how you \emph{use} a trained model.
+  \item \textbf{Likelihood:} the images are fixed (your training set) and $\theta$ varies. ``I have these images. How well does each knob setting explain them?'' This is how you \emph{train}.
+\end{itemize}
+
+\textbf{Equation}
+\[
+L(\theta)=p(\mathcal{D}\mid\theta)
+\]
+\begin{itemize}[nosep]
+  \item \textbf{What it says:} The likelihood is a score for each knob setting.
+  \item \textbf{When it holds:} It is \emph{not} a probability distribution over $\theta$. Its total over all $\theta$ does not have to be 1. It becomes a distribution over $\theta$ only if you add a prior $p(\theta)$ and use Bayes' rule, which gives the posterior $p(\theta\mid\mathcal{D})$.
+  \item \textbf{Special values:} $L(\theta)=0$ means that setting makes your data impossible.
+\end{itemize}
+
+\textbf{Common mistake (hand notes, mistake 1):} calling $p(\theta\mid\mathcal{D})$ the likelihood. The likelihood is $p(\mathcal{D}\mid\theta)$. Maximizing $p(\theta\mid\mathcal{D})$ is a different method, called \emph{maximum a posteriori} (MAP), and it needs a prior.
+
+\subsubsection{Concept 4.2: Log-likelihood}\label{c4-2}
+
+\[
+\ell(\theta)=\log L(\theta)=\sum_{n=1}^{N}\log p\big(x^{(n)}\mid\theta\big)
+\]
+\begin{itemize}[nosep]
+  \item \textbf{Symbols:} $\ell$ (a curly ``l'') is the log-likelihood. $\sum$ means ``add all the terms''.
+  \item \textbf{What it says:} Taking the log turns the i.i.d.\ product into a sum, because $\log(ab)=\log a+\log b$.
+  \item \textbf{Why we do it:} (1) Products of many small numbers \emph{underflow}: they get too tiny for a computer and become 0. Sums of logs stay normal-sized. (2) The log is \emph{strictly increasing} (a bigger input always gives a bigger output), so the $\theta$ that maximizes $\ell$ also maximizes $L$.
+  \item \textbf{Special values:} For separate values each $p\le1$, so each log is $\le0$. $p=1$ gives 0. $p\to0$ gives $-\infty$, so one impossible example ruins the whole score.
+\end{itemize}
+
+\subsubsection{Concept 4.3: Maximum likelihood estimation}\label{c4-3}
+
+\[
+\hat\theta_{\text{ML}}=\arg\max_\theta\ \ell(\theta)
+\]
+\begin{itemize}[nosep]
+  \item \textbf{Symbols:} The hat on $\hat\theta$ means ``estimated from data''. $\arg\max_\theta$ means ``the $\theta$ that makes what follows largest''. It returns the setting, not the score.
+  \item \textbf{What it says:} Try every knob setting and keep the one that gives the training data the highest score.
+  \item \textbf{How to find it in simple models:} At the top of a hill the slope is zero. Take the derivative, set it to 0, solve. Then check that the second derivative is negative (the curve bends down), so it is a peak and not a valley.
+  \item \textbf{Weakness:} With little data, MLE copies the quirks of that data. If a value never appears in training, MLE says it is impossible.
+  \item \textbf{In deep models:} $\log p_\theta(x)$ has no short formula, so we climb the hill step by step with gradient descent. The principle is the same.
+\end{itemize}
+
+\subsection{Solution}
+
+\textbf{(a)} Count the pixels: image 1 has 3 whites, image 2 has 4, image 3 has 3. So 10 white and 2 black out of 12. Each white pixel contributes $\theta$ and each black pixel contributes $1-\theta$:
+\[
+L(\theta)=\theta^{10}(1-\theta)^{2},\qquad \ell(\theta)=10\log\theta+2\log(1-\theta).
+\]
+
+\textbf{(b)} Using $\frac{d}{d\theta}\log\theta=\frac1\theta$ and $\frac{d}{d\theta}\log(1-\theta)=-\frac1{1-\theta}$:
+\[
+\frac{d\ell}{d\theta}=\frac{10}{\theta}-\frac{2}{1-\theta}=0
+\;\Rightarrow\;10(1-\theta)=2\theta
+\;\Rightarrow\;10=12\theta
+\;\Rightarrow\;\hat\theta_{\text{ML}}=\frac{10}{12}\approx0.833 .
+\]
+Second derivative:
+\[
+\frac{d^2\ell}{d\theta^2}=-\frac{10}{\theta^2}-\frac{2}{(1-\theta)^2}<0
+\]
+for every $\theta$ between 0 and 1, so the curve bends down and this is a peak. The answer is simply the fraction of white pixels seen: maximum likelihood ``copies the frequency in the data''.
+
+\textbf{(c)}
+\[
+L(0.5)=0.5^{12}\approx0.000244,\qquad
+L(5/6)=(5/6)^{10}(1/6)^2\approx0.1615\times0.0278\approx0.00449 .
+\]
+The ratio is about $0.00449/0.000244\approx18.4$. The fitted knob explains the training images about 18 times better than a 50/50 machine.
+
+\textbf{(d)} The likelihood is a \emph{score} for comparing knob settings, not a probability over $\theta$. The images are held fixed and $\theta$ varies, so nothing forces the scores to add to 1 (here the area is about 0.00117). The only thing that must add to 1 is $p(x\mid\theta)$ over all images \emph{for a fixed} $\theta$. Maximizing $p(\theta\mid\mathcal{D})$ is MAP, not maximum likelihood. It needs a prior $p(\theta)$, and the person forgot to say they used one.
+
+\textbf{(e)} With 12 whites and 0 blacks, $\hat\theta_{\text{ML}}=12/12=1$. The model now says every pixel is always white. A test image with one black pixel gets probability $1^3\times(1-1)=0$, and $\log 0=-\infty$. The model calls a perfectly ordinary image impossible. This is the over-fitting weakness of MLE with little data. It also shows why maximum likelihood punishes ``zero probability on real data'' so strongly (see \hyperref[c5-5]{Concept 5.5}).
+
+\textbf{(f)} There are $10{,}000\times784=7{,}840{,}000$ pixel terms. The likelihood would be about $0.8^{7{,}840{,}000}$, which is far smaller than the smallest number a computer can store, so it becomes 0. The log-likelihood is a sum and stays manageable:
+\[
+\ell\approx7{,}840{,}000\times\log0.8\approx7{,}840{,}000\times(-0.223)\approx-1.75\times10^{6}.
+\]
+Because log never changes the order of scores, the best $\theta$ is the same either way.
+% ============================================================
+\newpage
+\section{Question 5: Why maximum likelihood is the same as minimizing KL}
+
+\subsection{Question}
+
+An image generator should produce three kinds of output: a cat photo, a dog photo, or a blurry cat--dog blend. The real data never contains blends:
+\[
+p_{\text{data}}=(0.5,\ 0.5,\ 0)\quad\text{for (cat, dog, blend).}
+\]
+Two trained models:
+\[
+\text{Model A}=(0.45,\ 0.45,\ 0.10),\qquad \text{Model B}=(1,\ 0,\ 0).
+\]
+\begin{enumerate}[label=(\alph*)]
+  \item Compute $\mathrm{KL}(p_{\text{data}}\,\|\,A)$ and $\mathrm{KL}(p_{\text{data}}\,\|\,B)$.
+  \item Compute the reverse divergences $\mathrm{KL}(A\,\|\,p_{\text{data}})$ and $\mathrm{KL}(B\,\|\,p_{\text{data}})$.
+  \item Which model does maximum likelihood prefer? Which one does the reverse KL prefer? Name the two behaviours.
+  \item Compute the entropy $H(p_{\text{data}})$ and the average log-likelihood of model A on real data, $\mathbb{E}_{p_{\text{data}}}[\log p_A(x)]$. Check that
+  \[
+  \mathbb{E}_{p_{\text{data}}}[\log p_A(x)]=-H(p_{\text{data}})-\mathrm{KL}(p_{\text{data}}\,\|\,A).
+  \]
+  \item In words: why does maximizing the average log-likelihood give the same model as minimizing $\mathrm{KL}(p_{\text{data}}\|p_\theta)$? Which term does not depend on $\theta$?
+\end{enumerate}
+Use the convention $0\log0=0$.
+
+\subsection{What the question is asking}
+
+Training a generative model means ``make the model close to the real data''. KL divergence is the course's measure of ``how far apart'' two distributions are. This question asks you to compute KL in both directions on a tiny example, see that the two directions reward very different models, and confirm the identity that links KL to maximum likelihood.
+
+\subsection{Concepts you need}
+
+\textbf{Already explained:} log-likelihood and MLE (\hyperref[c4-2]{Concepts 4.2} and \hyperref[c4-3]{4.3}).
+
+\subsubsection{Concept 5.1: Expectation (a weighted average)}\label{c5-1}
+
+\[
+\mathbb{E}_{p}[f(x)]=\sum_x p(x)\,f(x)\qquad\text{or}\qquad\int p(x)\,f(x)\,dx
+\]
+\begin{itemize}[nosep]
+  \item \textbf{Symbols:} $\mathbb{E}_p$ means ``the average when $x$ is drawn from $p$''. $f(x)$ is any quantity computed from $x$.
+  \item \textbf{What it says:} Take each possible value of $f$, weight it by how often $x$ comes out, and add.
+  \item \textbf{Example:} If a text model writes ``The'' 48\% of the time and you score each word, the average score counts ``The'' with weight 0.48.
+  \item \textbf{In practice:} We cannot average over every real image, so we use the training set as a stand-in: $\frac1N\sum_n f(x^{(n)})$.
+\end{itemize}
+
+\subsubsection{Concept 5.2: KL divergence}\label{c5-2}
+
+\[
+\mathrm{KL}(p\,\|\,q)=\mathbb{E}_p\big[\log p(x)-\log q(x)\big]=\sum_x p(x)\log\frac{p(x)}{q(x)}
+\]
+\begin{itemize}[nosep]
+  \item \textbf{Symbols:} $p$ and $q$ are two distributions over the same things. $\mathrm{KL}(p\|q)$ is read ``KL from $p$ to $q$''. The average is taken under the \emph{first} one, $p$.
+  \item \textbf{What it says:} For each outcome, compare how likely $p$ and $q$ think it is (in log form), and average those differences using $p$'s weights. It is a score for how different the two distributions are.
+  \item \textbf{When it holds:} KL is always $\ge0$, and it is 0 only when $p=q$.
+  \item \textbf{Special values:} Outcomes with $p(x)=0$ contribute nothing ($0\log0=0$). If $p(x)>0$ but $q(x)=0$ for some outcome, that term is $\log(p/0)=+\infty$, so the KL is infinite.
+  \item \textbf{Not symmetric:} $\mathrm{KL}(p\|q)$ and $\mathrm{KL}(q\|p)$ are different numbers in general, so KL is not a true ``distance''.
+\end{itemize}
+
+\subsubsection{Concept 5.3: Entropy}\label{c5-3}
+
+\[
+H(p)=-\mathbb{E}_p[\log p(x)]=-\sum_x p(x)\log p(x)
+\]
+\begin{itemize}[nosep]
+  \item \textbf{What it says:} Entropy measures how unpredictable the data is. A text source that always writes the same sentence has entropy 0. A source that is equally likely to write any of $K$ sentences has entropy $\log K$.
+  \item \textbf{Key point:} $H(p_{\text{data}})$ depends only on the real world, not on the model.
+\end{itemize}
+
+\subsubsection{Concept 5.4: Maximum likelihood equals minimizing KL}\label{c5-4}
+
+\[
+\mathbb{E}_{p_{\text{data}}}[\log p_\theta(x)]=-H(p_{\text{data}})-\mathrm{KL}(p_{\text{data}}\,\|\,p_\theta)
+\]
+\begin{itemize}[nosep]
+  \item \textbf{Symbols:} The left side is the average log-score the model gives to real data, which is what training maximizes. $H$ is the entropy of real data. KL is the gap between model and reality.
+  \item \textbf{Where it comes from:} Write out the KL and split the average:
+  \[
+  \mathrm{KL}(p_{\text{data}}\|p_\theta)=\underbrace{\mathbb{E}_{p_{\text{data}}}[\log p_{\text{data}}(x)]}_{=-H(p_{\text{data}}),\ \text{no }\theta}-\underbrace{\mathbb{E}_{p_{\text{data}}}[\log p_\theta(x)]}_{\text{training objective}} .
+  \]
+  Rearranging gives the identity.
+  \item \textbf{What it says:} The average score equals a fixed number minus the gap. You cannot change the fixed number, so the only way to raise the score is to shrink the gap.
+  \item \textbf{Special values:} KL $=0$ means a perfect match, and then the score reaches its best possible value $-H$. A very predictable world (low entropy) allows a higher best score.
+\end{itemize}
+
+\subsubsection{Concept 5.5: Direction matters: mode covering versus mode seeking}\label{c5-5}
+
+A \emph{mode} is a peak or cluster in the data, such as ``cat photos''.
+\begin{itemize}[nosep]
+  \item $\mathrm{KL}(p_{\text{data}}\|p_\theta)$ (what MLE minimizes) averages over \emph{real} data. It is huge when the model gives almost no chance to something real. So the model spreads out to cover every cluster. This is \textbf{mode covering}. The cost: it may put some chance between clusters, on things that look like neither, which can give blurry or odd samples.
+  \item $\mathrm{KL}(p_\theta\|p_{\text{data}})$ (the reverse direction) averages over the \emph{model's own} outputs. It is huge when the model makes things real data never contains. So the model can safely focus on one cluster and ignore the others. This is \textbf{mode seeking}. Samples look clean but lack variety. Some variational methods behave more like this direction.
+\end{itemize}
+
+\subsection{Solution}
+
+\textbf{(a)} The blend term has $p_{\text{data}}=0$, so it contributes nothing.
+\[
+\mathrm{KL}(p_{\text{data}}\|A)=0.5\log\frac{0.5}{0.45}+0.5\log\frac{0.5}{0.45}=\log\frac{1}{0.9}\approx0.105 .
+\]
+\[
+\mathrm{KL}(p_{\text{data}}\|B)=0.5\log\frac{0.5}{1}+0.5\log\frac{0.5}{0}=+\infty .
+\]
+Model B gives real dog photos probability 0, so this direction is infinite.
+
+\textbf{(b)} Now the average is over each model's own outputs.
+\[
+\mathrm{KL}(A\|p_{\text{data}})=0.45\log\frac{0.45}{0.5}+0.45\log\frac{0.45}{0.5}+0.10\log\frac{0.10}{0}=+\infty .
+\]
+Model A sometimes makes blends, which never occur in real data, so this direction is infinite.
+\[
+\mathrm{KL}(B\|p_{\text{data}})=1\cdot\log\frac{1}{0.5}+0+0=\log2\approx0.693 .
+\]
+
+\textbf{(c)} Maximum likelihood minimizes $\mathrm{KL}(p_{\text{data}}\|p_\theta)$, so it prefers \textbf{Model A} (0.105 against infinity). A covers both cats and dogs, even at the price of some blurry blends. That is \emph{mode covering}. The reverse KL prefers \textbf{Model B} (0.693 against infinity). B makes only clean cat photos and ignores dogs completely. That is \emph{mode seeking}.
+
+\textbf{(d)}
+\[
+H(p_{\text{data}})=-(0.5\log0.5+0.5\log0.5+0)=\log2\approx0.693 .
+\]
+\[
+\mathbb{E}_{p_{\text{data}}}[\log p_A(x)]=0.5\log0.45+0.5\log0.45=\log0.45\approx-0.799 .
+\]
+Check: $-H-\mathrm{KL}=-0.693-0.105=-0.798$. This matches $-0.799$ up to rounding.
+
+\textbf{(e)} Split the KL as in \hyperref[c5-4]{Concept 5.4}. It contains two pieces: the average log-probability of real data \emph{under the real distribution}, which is $-H(p_{\text{data}})$, and minus the average log-probability of real data \emph{under the model}, which is the training objective. The first piece is a property of the world, so it does not depend on $\theta$. Changing $\theta$ can only move the second piece. Raising the training objective by some amount lowers the KL by exactly the same amount. So the best $\theta$ is the same for both goals. The term that does not depend on $\theta$ is the entropy $H(p_{\text{data}})$.
+
+% ============================================================
+\newpage
+\section{Question 6: Generative versus discriminative, and what a density buys you}
+
+\subsection{Question}
+
+A sound system labels short audio clips as speech or music using one feature $x$ (a normalized pitch score). A generative classifier models each class with a Gaussian:
+\[
+p(x\mid\text{speech})=\mathcal{N}(x;0,1),\qquad p(x\mid\text{music})=\mathcal{N}(x;3,1).
+\]
+\begin{enumerate}[label=(\alph*)]
+  \item Write the joint $p(x,y)$ in its two product-rule forms. Which factor does a discriminative model learn, and which factors does a generative model learn?
+  \item With equal priors (0.5 each), where is the decision boundary? Now use $p(\text{speech})=0.8$, $p(\text{music})=0.2$. Compute $p(\text{speech}\mid x=1.5)$ and find the new boundary. Why did it move?
+  \item If music instead had variance 4 (speech keeps variance 1), what happens to the shape of the boundary? Name the two classical methods.
+  \item Can a logistic-regression classifier trained on the same clips produce a new music pitch value? What would you need? Describe how the generative classifier produces one.
+  \item A language model gives the sentence ``the cat sat'' probability $1/1024$. How many bits would an ideal compressor using this model need for it? How many bits per token? Compare with a model that picks uniformly from a 50,000-word vocabulary.
+  \item Ng and Jordan (2001): you have 20 labelled clips. Which kind of classifier would you expect to reach its best error sooner? With a million labelled clips, which would you expect to win? Give two other uses of a density besides classification, with one warning.
+\end{enumerate}
+Use $\log 4\approx1.386$.
+
+\subsection{What the question is asking}
+
+The same joint distribution can be split two ways. A classifier keeps only ``given the clip, which label?''. A generative model keeps ``which label, and what does each label's clip look like?''. This question asks you to classify with the generative version, see how the prior shifts the decision, and list what else the generative version can do (sample, compress, flag odd inputs, fill gaps).
+
+\subsection{Concepts you need}
+
+\textbf{Already explained:} product rule (\hyperref[c2-3]{Concept 2.3}), Bayes' rule (\hyperref[c2-4]{Concept 2.4}).
+
+\subsubsection{Concept 6.1: Discriminative and generative models}\label{c6-1}
+
+\[
+p(x,y)=\underbrace{p(y\mid x)\,p(x)}_{\text{discriminative path}}=\underbrace{p(x\mid y)\,p(y)}_{\text{generative path}}
+\]
+\begin{itemize}[nosep]
+  \item \textbf{Discriminative model:} learns only $p(y\mid x)$ (or a decision score). Examples: logistic regression, a ResNet classifier. It reads an image and outputs a label. It never learns how images are produced, so it \emph{cannot draw a new image}.
+  \item \textbf{Generative model:} learns $p(x)$, or $p(x\mid y)$ with $p(y)$, or the whole joint. Examples: Naive Bayes, PixelCNN, VAE, diffusion models, language models. Drawing new data is part of the definition, even if it is slow.
+  \item \textbf{Sampling direction:} discriminative goes image $\to$ label. Generative goes label $\to$ image (or skips the label and draws an image directly).
+\end{itemize}
+
+\begin{center}
+\begin{tabular}{@{}>{\raggedright\arraybackslash}p{0.22\textwidth}>{\raggedright\arraybackslash}p{0.33\textwidth}>{\raggedright\arraybackslash}p{0.36\textwidth}@{}}
+\toprule
+ & Discriminative & Generative \\
+\midrule
+Learns & $p(y\mid x)$ & $p(x)$ or $p(x,y)$ \\
+Can make new $x$? & No & Yes \\
+Missing pixels & needs a separate model & fill in from the joint \\
+Size of the job & only explain the label & explain all of $x$ \\
+Typical failure & confidently wrong on unusual inputs & blur, missing kinds of data, slow sampling \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\subsubsection{Concept 6.2: Classifying with a generative model}\label{c6-2}
+
+\[
+\hat y=\arg\max_y\ p(x\mid y)\,p(y)
+\]
+\begin{itemize}[nosep]
+  \item \textbf{Symbols:} $\hat y$ is the predicted label. $p(x\mid y)$ says how well the clip fits class $y$. $p(y)$ says how common class $y$ is.
+  \item \textbf{What it says:} For a new clip, score each class by ``fit times how common'' and pick the highest. This is Bayes' rule without the bottom $p(x)$, which is the same for every class and so cannot change the winner.
+  \item \textbf{Gaussian classes (Gaussian discriminant analysis):} $p(y)=\pi_y$ and $p(x\mid y)=\mathcal{N}(x;\mu_y,\Sigma_y)$.
+  \begin{itemize}[nosep]
+    \item Same spread (covariance) for every class gives a straight-line boundary: \textbf{LDA} (linear discriminant analysis).
+    \item A separate spread per class gives a curved boundary: \textbf{QDA} (quadratic discriminant analysis).
+  \end{itemize}
+  \item \textbf{Deep generative models} keep this template but (1) replace the Gaussian with a neural density and (2) replace the label $y$ with a continuous hidden code $z$.
+\end{itemize}
+
+The 1D Gaussian density, used throughout the course:
+\[
+\mathcal{N}(x;\mu,\sigma^2)=\frac{1}{\sqrt{2\pi\sigma^2}}\exp\!\Big(-\frac{(x-\mu)^2}{2\sigma^2}\Big)
+\]
+Here $\mu$ is the centre and $\sigma^2$ the spread (variance). The curve is tallest at $x=\mu$ and falls off as $x$ moves away.
+
+\subsubsection{Concept 6.3: The Ng and Jordan result}\label{c6-3}
+
+Compared on classification only: with lots of labels, a discriminative classifier eventually reaches a lower error. With few labels, a generative classifier often reaches its best error sooner, because it also learns what each class looks like. But that best error can be higher. The lesson: you choose a generative model when you want samples, densities or representations, not just because it might classify better.
+
+\subsubsection{Concept 6.4: What a good density is good for}\label{c6-4}
+
+\begin{itemize}[nosep]
+  \item \textbf{Compression.} An item with probability $p$ needs about $-\log_2 p$ bits. Likely items get short codes, rare ones long codes (like Morse code: ``E'' is one dot, ``Q'' is long). For images, papers report \emph{bits per dimension} (\hyperref[c10-4]{Concept 10.4}).
+  \item \textbf{Filling in missing parts.} Fix the pixels you can see and ask the joint what the rest probably looks like (inpainting, or guessing a missing word).
+  \item \textbf{Spotting oddballs.} A very low $p_\theta(x)$ flags an unusual input. \emph{Warning:} for high-dimensional data like images this ranking is unreliable. Some strange inputs still get high scores, so treat it as a hint, not proof.
+  \item \textbf{Classifying with Bayes' rule.} Class models $p(x\mid y)$ plus a prior give a classifier (\hyperref[c6-2]{Concept 6.2}).
+\end{itemize}
+
+\textbf{Equation (ideal code length)}
+\[
+\text{bits}(x)\approx-\log_2 p(x)
+\]
+\begin{itemize}[nosep]
+  \item \textbf{Special values:} $p=1/2$ costs 1 bit, $p=1/8$ costs 3 bits, $p=1/1024$ costs 10 bits. A uniform guess over $K$ options costs $\log_2K$ bits each.
+\end{itemize}
+
+\subsection{Solution}
+
+\textbf{(a)}
+\[
+p(x,y)=p(y\mid x)\,p(x)=p(x\mid y)\,p(y).
+\]
+A discriminative model learns only $p(y\mid x)$, ``given the pitch, which class?''. The generative model here learns $p(x\mid y)$ (the two Gaussians) and $p(y)$ (the priors).
+
+\textbf{(b)} \emph{Equal priors.} The two curves have the same shape, centred at 0 and 3. With equal weights, the winner switches where the curves cross, halfway between the centres: $x=1.5$.
+
+\emph{Priors 0.8 and 0.2.} At $x=1.5$ both curves have the same height (1.5 is 1.5 away from both centres), so the curve heights cancel:
+\[
+p(\text{speech}\mid1.5)=\frac{0.8\,\mathcal{N}(1.5;0,1)}{0.8\,\mathcal{N}(1.5;0,1)+0.2\,\mathcal{N}(1.5;3,1)}=\frac{0.8}{0.8+0.2}=0.8 .
+\]
+New boundary: set the two scores equal and take logs. The $\frac{1}{\sqrt{2\pi}}$ parts cancel:
+\begin{align*}
+\log0.8-\frac{x^2}{2}&=\log0.2-\frac{(x-3)^2}{2}\\
+\log4&=\frac{x^2-(x-3)^2}{2}=\frac{6x-9}{2}\\
+x&=\frac{9+2\log4}{6}\approx\frac{9+2.773}{6}\approx1.96 .
+\end{align*}
+The boundary moved from 1.5 toward the music centre. Speech is now four times more common, so a clip must look clearly more ``music-like'' before we call it music. The prior pushes the boundary into the rarer class's territory.
+
+\textbf{(c)} With different variances, the $x^2$ terms no longer cancel when you set the scores equal. The boundary becomes curved (quadratic). In 1D that means there can be \emph{two} switch points: the wide music curve can win far out on both sides, and speech wins only in a middle region. Shared variance with a straight boundary is LDA. Separate variances with a curved boundary is QDA.
+
+\textbf{(d)} No. Logistic regression learns only $p(y\mid x)$. It always needs a clip as input, and it has never learned which pitch values are typical. To generate you need $p(x\mid y)$ (or $p(x)$). The generative classifier samples by following the arrows: pick a class from $p(y)$ (speech with 0.8, music with 0.2), then draw $x$ from that class's Gaussian. To get a music clip on request, draw $x\sim\mathcal{N}(3,1)$ directly.
+
+\textbf{(e)}
+\[
+-\log_2\frac{1}{1024}=10\ \text{bits},\qquad \frac{10}{3}\approx3.33\ \text{bits per token}.
+\]
+A uniform model over 50,000 words needs $\log_2 50{,}000\approx15.6$ bits per token, about 46.8 bits for three tokens. The language model needs far fewer bits because it has learned which word sequences are likely.
+
+\textbf{(f)} With 20 labels, the generative classifier usually reaches its best error sooner, because it also uses what each class looks like. With a million labels, the discriminative classifier usually ends with lower error. Two other uses of a density: filling in missing parts (for example a cut-out section of audio), and flagging unusual clips by low $p_\theta(x)$. The warning: in high dimensions a low score is only a hint, because some strange inputs still get high likelihood.
+
+% ============================================================
+\newpage
+\section{Question 7: Latent variable models and the hard integral}
+
+\subsection{Question}
+
+A face generator uses a hidden code $z\in\mathbb{R}^2$ with $p(z)=\mathcal{N}(0,I)$, and a neural network decoder that defines $p_\theta(x\mid z)$.
+\begin{enumerate}[label=(\alph*)]
+  \item Write the joint $p_\theta(x,z)$, the marginal likelihood $p_\theta(x)$ and the posterior $p_\theta(z\mid x)$. A classmate writes $p_\theta(x)=\int p_\theta(x\mid z)\,dz$. What is wrong?
+  \item Why is $p_\theta(x)$ hard to compute here? Why is the posterior hard for the same reason? Would it be hard if $z$ took only 10 values? What if $z$ were 100 on/off switches?
+  \item Write the joint for two directed graphs over three pixels: (i) $z$ points to $x_1,x_2,x_3$; (ii) the fully autoregressive graph with no $z$. Which one has an explicit hidden code? Which one gives the exact likelihood as a plain product of known factors?
+  \item Give the three responses the course takes to the hard integral, with the week of each.
+  \item If the training set contained the pairs $(x,z)$, what objective would we maximize? We only see $x$. What is the correct objective, and what tool turns it into something we can optimize?
+\end{enumerate}
+
+\subsection{What the question is asking}
+
+A latent-variable model makes an image in two steps: pick a hidden code, then turn it into an image. To score an image, you must consider every hidden code that could have made it. The question asks you to write the three key distributions, explain why ``considering every code'' is impossible with a neural network, and connect this to how the rest of the course is organised.
+
+\subsection{Concepts you need}
+
+\textbf{Already explained:} latent variable as a hidden cause (\hyperref[c3-2]{Concept 3.2}), plate notation (\hyperref[c3-4]{Concept 3.4}), Bayes' rule (\hyperref[c2-4]{Concept 2.4}).
+
+\subsubsection{Concept 7.1: The generative story}\label{c7-1}
+
+A latent variable model generates by \emph{ancestral sampling}, following the arrows:
+\begin{enumerate}[nosep]
+  \item Draw $z\sim p_\theta(z)$. ``Choose the hidden cause'' (pose, lighting, which digit).
+  \item Draw $x\sim p_\theta(x\mid z)$. ``Render the image from that cause.''
+\end{enumerate}
+We introduce $z$ because (1) the marginal $p(x)$ is complicated, while $p(x\mid z)$ can be simple; (2) $z$ is a useful summary for editing or clustering; (3) a shared cause explains why pixels depend on each other.
+
+A common modelling choice is that, once $z$ is known, the pixels are independent:
+\[
+p(x\mid z)=\prod_{d=1}^{D}p(x_d\mid z).
+\]
+Without $z$ they are still dependent through the shared cause (\hyperref[c3-1]{Concept 3.1}). This is how a short code creates a big, correlated image. Mixtures, VAEs and many other models use this idea.
+
+\subsubsection{Concept 7.2: Joint, marginal likelihood and posterior with a latent}\label{c7-2}
+
+\textbf{Joint}
+\[
+p_\theta(x,z)=p_\theta(x\mid z)\,p_\theta(z)
+\]
+\begin{itemize}[nosep]
+  \item \textbf{What it says:} ``Pick $z$, then make $x$ from $z$'' is a product of the two steps.
+\end{itemize}
+
+\textbf{Marginal likelihood (also called the evidence)}
+\[
+p_\theta(x)=\int p_\theta(x\mid z)\,p_\theta(z)\,dz\qquad\text{or}\qquad\sum_z p_\theta(x\mid z)\,p_\theta(z)
+\]
+\begin{itemize}[nosep]
+  \item \textbf{Symbols:} The integral (or sum, if $z$ takes separate values) runs over every possible code.
+  \item \textbf{What it says:} The chance of an image is the chance of making it from each possible code, weighted by how likely that code is, added over all codes.
+  \item \textbf{When it holds:} Always. Training never sees $z$, so this marginal is what maximum likelihood must maximize.
+  \item \textbf{Common mistake (hand notes, mistake 3):} dropping the prior $p(z)$ from the integral.
+\end{itemize}
+
+\textbf{Posterior}
+\[
+p_\theta(z\mid x)=\frac{p_\theta(x,z)}{p_\theta(x)}
+\]
+\begin{itemize}[nosep]
+  \item \textbf{What it says:} ``I have this image. Which hidden codes probably produced it?'' It is Bayes' rule with $z$ in place of a label.
+  \item \textbf{When it holds:} When $p_\theta(x)>0$. Its bottom is the marginal, so if the marginal is hard, the posterior is hard too.
+\end{itemize}
+
+\begin{center}
+\begin{tabular}{@{}lll@{}}
+\toprule
+Name & With a label & With a latent \\
+\midrule
+Prior & $p(y)$ & $p(z)$ \\
+Likelihood & $p(x\mid y)$ & $p(x\mid z)$ \\
+Joint & $p(x,y)$ & $p(x,z)$ \\
+Posterior & $p(y\mid x)$ & $p(z\mid x)$ \\
+Evidence & $p(x)$ & $p(x)=\int p(x,z)\,dz$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\subsubsection{Concept 7.3: Why the integral is intractable}\label{c7-3}
+
+An integral can be done by hand only if the formula inside has a known ``undo'' (an antiderivative). A Gaussian inside a Gaussian has one. A neural network is many layers of ``multiply, add, bend'' stacked together. Pushing $z$ through all of that leaves no closed form. Trying every $z$ on a computer also fails, because the number of codes grows exponentially with the size of $z$.
+
+\begin{center}
+\begin{tabular}{@{}>{\raggedright\arraybackslash}p{0.45\textwidth}>{\raggedright\arraybackslash}p{0.45\textwidth}@{}}
+\toprule
+Response to the hard integral & Where in the course \\
+\midrule
+Do not use $z$. Split $p(x)$ with the chain rule into explicit pieces. & Week 2, autoregressive models \\
+Keep $z$, and maximize a lower bound on $\log p(x)$. & Week 3, VAEs \\
+Make the map from noise to $x$ invertible, so the density is a base density times a Jacobian factor. & Week 8, flows \\
+Define only a sampler and do not compute $p(x)$. & Week 4, GANs \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\subsubsection{Concept 7.4: Directed graphical models}\label{c7-4}
+
+A directed graphical model is a diagram with arrows and no loops (a DAG, ``directed acyclic graph''). Each node gets its own distribution given the nodes that point into it (its \emph{parents}):
+\[
+p(v)=\prod_{v}p\big(v\mid\text{pa}(v)\big)
+\]
+\begin{itemize}[nosep]
+  \item \textbf{Symbols:} $\text{pa}(v)$ is the set of parents of node $v$.
+  \item \textbf{What it says:} The joint of everything is the product of ``each node given its parents''.
+  \item \textbf{When it holds:} For any graph without loops. Because arrows never loop back, you can always sample by starting at nodes with no parents and following the arrows.
+\end{itemize}
+
+\subsubsection{Concept 7.5: Complete data versus incomplete data}\label{c7-5}
+
+If the training set contained the pairs $(x,z)$, we would maximize the \emph{complete-data} log-likelihood
+\[
+\log p(x,z\mid\theta)=\log p(x\mid z,\theta)+\log p(z\mid\theta),
+\]
+which is often easy (for a mixture it reduces to weighted averages). We see only $x$, so the correct objective is the \emph{incomplete-data} one,
+\[
+\log p(x\mid\theta)=\log\int p(x,z\mid\theta)\,dz,
+\]
+a log of an integral. Because log is a curve that bends downward (concave), \emph{Jensen's inequality} gives a lower bound on this number that we can optimize (\hyperref[c16-1]{Concept 16.1}). The bound exists because $z$ is missing, not because of any particular network.
+
+\subsection{Solution}
+
+\textbf{(a)}
+\[
+p_\theta(x,z)=p_\theta(x\mid z)\,p(z),\qquad
+p_\theta(x)=\int p_\theta(x\mid z)\,p(z)\,dz,\qquad
+p_\theta(z\mid x)=\frac{p_\theta(x\mid z)\,p(z)}{p_\theta(x)} .
+\]
+The classmate dropped the prior $p(z)$. Without it, every code counts equally, including codes the model would almost never pick, and the result is not even guaranteed to be a proper distribution over $x$.
+
+\textbf{(b)} The decoder is a stack of nonlinear layers, so $p_\theta(x\mid z)\,p(z)$ has no closed-form integral over $z$. The posterior divides by exactly this integral, so it is hard for the same reason.
+
+If $z$ took only 10 values, the integral would be a sum of 10 terms, which is easy. This is why a mixture with a few components is tractable (Question 8). If $z$ were 100 on/off switches, the sum would have $2^{100}\approx1.3\times10^{30}$ terms, far too many to compute.
+
+\textbf{(c)}
+\[
+\text{(i)}\ \ p(z,x_1,x_2,x_3)=p(z)\,p(x_1\mid z)\,p(x_2\mid z)\,p(x_3\mid z),
+\]
+\[
+\text{(ii)}\ \ p(x_1,x_2,x_3)=p(x_1)\,p(x_2\mid x_1)\,p(x_3\mid x_1,x_2).
+\]
+Graph (i) has the explicit hidden code. To score an image you must still sum or integrate $z$ out. Graph (ii) has no latent, and its likelihood is a product of explicit conditionals. Week 2 builds it with neural networks and gets the exact likelihood.
+
+\textbf{(d)} Avoid $z$ and use the chain rule (Week 2). Keep $z$ and optimize a lower bound, the ELBO (Week 3). Make the map invertible so the density becomes a Jacobian term (Week 8). (GANs, in Week 4, give up on $p(x)$ entirely.)
+
+\textbf{(e)} With pairs $(x,z)$ we would maximize $\log p(x\mid z,\theta)+\log p(z\mid\theta)$. With only $x$, the correct objective is $\log\int p(x,z\mid\theta)\,dz$. Jensen's inequality turns this into a lower bound that can be optimized. EM (Question 8) and the VAE (Week 3) both work this way.
+
+% ============================================================
+\newpage
+\section{Question 8: A Gaussian mixture for photo brightness}
+
+\subsection{Question}
+
+A photo generator picks a hidden type $z$, then the average brightness $x$ of the photo:
+\begin{itemize}[nosep]
+  \item type 1 (night): $\pi_1=0.4$, $\mu_1=0.2$, $\sigma_1^2=0.01$;
+  \item type 2 (day): $\pi_2=0.6$, $\mu_2=0.7$, $\sigma_2^2=0.04$.
+\end{itemize}
+Use $\frac{1}{\sqrt{2\pi}}\approx0.3989$, $e^{-2}\approx0.1353$ and $e^{-1.125}\approx0.3247$.
+\begin{enumerate}[label=(\alph*)]
+  \item Write the generative story and the marginal $p(x)$.
+  \item Compute $\mathcal{N}(0.4;0.2,0.01)$ and $\mathcal{N}(0.4;0.7,0.04)$. Then compute $p(x=0.4)$ and the responsibilities $r_1(0.4)$ and $r_2(0.4)$.
+  \item $\mathcal{N}(0.2;0.2,0.01)\approx3.99$. Is a value above 1 a problem?
+  \item Compare $\log p(0.4)$ with $\log(0.4\,\mathcal{N}_1)+\log(0.6\,\mathcal{N}_2)$. Why does this ``log of a sum'' stop us from solving for the parameters in one step?
+  \item State the E-step and the M-step of EM. Three photos have brightness 0.15, 0.4 and 0.8. Their night responsibilities are 0.981, 0.357 and 0.000. Using
+  \[
+  \mu_1^{\text{new}}=\frac{\sum_n r_1(x^{(n)})\,x^{(n)}}{\sum_n r_1(x^{(n)})},\qquad \pi_1^{\text{new}}=\frac{1}{N}\sum_n r_1(x^{(n)}),
+  \]
+  compute the updated $\mu_1$ and $\pi_1$.
+  \item How is a VAE ``the same idea as EM''?
+\end{enumerate}
+
+\subsection{What the question is asking}
+
+A mixture is the simplest latent-variable model: the hidden variable just says which bell curve a data point came from. Because there are only two types, adding over them is easy. The question asks you to compute how likely a brightness value is, how much each type ``takes responsibility'' for it, and how EM uses those responsibilities to update the model.
+
+\subsection{Concepts you need}
+
+\textbf{Already explained:} Gaussian density (\hyperref[c6-2]{Concept 6.2}), marginal as a sum over $z$ (\hyperref[c7-2]{Concept 7.2}), densities above 1 (\hyperref[c2-1]{Concept 2.1}), Bayes' rule (\hyperref[c2-4]{Concept 2.4}).
+
+\subsubsection{Concept 8.1: The Gaussian mixture model}\label{c8-1}
+
+\[
+p(z=k)=\pi_k,\qquad p(x\mid z=k)=\mathcal{N}(x;\mu_k,\Sigma_k),\qquad p(x)=\sum_{k=1}^{K}\pi_k\,\mathcal{N}(x;\mu_k,\Sigma_k)
+\]
+\begin{itemize}[nosep]
+  \item \textbf{Symbols:} $z\in\{1,\dots,K\}$ is the hidden component (which cluster). $\pi_k$ is how often component $k$ is chosen (the mixing weight). $\mu_k$ and $\Sigma_k$ are the centre and spread of component $k$.
+  \item \textbf{What it says:} The overall curve is a weighted sum of bell curves. It is \emph{not} a single bell curve, and it can have several bumps.
+  \item \textbf{When it holds:} The weights must satisfy $\pi_k\ge0$ and $\sum_k\pi_k=1$.
+  \item \textbf{Why it is tractable:} The sum has only $K$ terms, and $K$ is small.
+\end{itemize}
+
+\subsubsection{Concept 8.2: Responsibilities}\label{c8-2}
+
+\[
+r_k(x)=p(z=k\mid x)=\frac{\pi_k\,\mathcal{N}_k(x)}{\sum_j\pi_j\,\mathcal{N}_j(x)}
+\]
+\begin{itemize}[nosep]
+  \item \textbf{Symbols:} $\mathcal{N}_k(x)$ is short for $\mathcal{N}(x;\mu_k,\Sigma_k)$. The bottom is exactly $p(x)$.
+  \item \textbf{What it says:} Bayes' rule with prior $\pi_k$ and Gaussian likelihood. It is a \emph{soft assignment}. Instead of ``this photo is night'', it says ``this photo is night with probability $r_1$''.
+  \item \textbf{Special values:} The responsibilities of one point add to 1. A point near one centre and far from the others gets responsibility near 1 for that component.
+\end{itemize}
+
+\subsubsection{Concept 8.3: The log of a sum}\label{c8-3}
+
+\[
+\ell(\theta)=\sum_{n=1}^{N}\log\sum_{k=1}^{K}\pi_k\,\mathcal{N}(x^{(n)};\mu_k,\Sigma_k)
+\]
+The log sits \emph{outside} a sum, so it cannot be split into simple pieces. Setting the derivative to zero does not give equations you can solve directly. \textbf{Common mistake (hand notes, mistake 6):} $\log\sum_k\pi_k\mathcal{N}_k$ is \emph{not} $\sum_k\log(\pi_k\mathcal{N}_k)$.
+
+\subsubsection{Concept 8.4: Expectation--Maximization (EM), as a preview}\label{c8-4}
+
+\begin{itemize}[nosep]
+  \item \textbf{E-step:} freeze the parameters and compute the responsibilities $r_k(x^{(n)})$ for every point and component (soft assignments).
+  \item \textbf{M-step:} freeze those responsibilities and update $\pi_k,\mu_k,\Sigma_k$ in closed form, as if the assignments had been observed. Each point counts toward component $k$ with weight $r_k$, so the new centre is a weighted average.
+  \item \textbf{Why it works:} each round never lowers the marginal likelihood. EM climbs $\ell(\theta)$ by repeatedly building a lower bound and tightening it.
+  \item \textbf{Link to VAEs:} a VAE is the same idea with two changes. A neural \emph{encoder} produces the approximate posterior (the job of the E-step), and a gradient step replaces the closed-form M-step.
+\end{itemize}
+
+The hand notes say you only need the responsibility formula and the statement of the two steps, unless a question gives you an M-step formula, as this one does.
+
+\subsection{Solution}
+
+\textbf{(a)} Story: (1) pick the type, night with 0.4 or day with 0.6; (2) draw the brightness from that type's bell curve.
+\[
+p(x)=0.4\,\mathcal{N}(x;0.2,0.01)+0.6\,\mathcal{N}(x;0.7,0.04).
+\]
+
+\textbf{(b)} Night component ($\sigma_1=0.1$):
+\[
+\mathcal{N}(0.4;0.2,0.01)=\frac{0.3989}{0.1}\,e^{-\frac{(0.2)^2}{2(0.01)}}=3.989\,e^{-2}\approx3.989\times0.1353\approx0.540 .
+\]
+Day component ($\sigma_2=0.2$):
+\[
+\mathcal{N}(0.4;0.7,0.04)=\frac{0.3989}{0.2}\,e^{-\frac{(0.3)^2}{2(0.04)}}=1.995\,e^{-1.125}\approx1.995\times0.3247\approx0.648 .
+\]
+Weighted terms: $0.4\times0.540=0.216$ and $0.6\times0.648=0.389$.
+\[
+p(0.4)=0.216+0.389=0.605,\qquad r_1(0.4)=\frac{0.216}{0.605}\approx0.357,\qquad r_2(0.4)\approx0.643 .
+\]
+Reading: 0.4 is two night-spreads from the night centre but only 1.5 day-spreads from the day centre, and day is also more common. So day takes about 64\% of the responsibility.
+
+\textbf{(c)} No. Brightness is smooth, so $\mathcal{N}$ is a density, a curve height, and it can exceed 1. The night curve is narrow (spread 0.1), so it must be tall to keep its area equal to 1. Only areas are probabilities.
+
+\textbf{(d)}
+\[
+\log p(0.4)=\log0.605\approx-0.503,\qquad \log0.216+\log0.389\approx-1.533-0.945=-2.478 .
+\]
+They are very different, so you cannot move the log inside the sum. Because the log of a sum does not split, the zero-derivative equations tie all the parameters together and cannot be solved directly. EM gets around this with soft assignments.
+
+\textbf{(e)} E-step: compute each photo's responsibilities with the current parameters (given here). M-step: treat them as weights and update.
+\[
+\sum_n r_1=0.981+0.357+0.000=1.338,
+\]
+\[
+\mu_1^{\text{new}}=\frac{0.981(0.15)+0.357(0.4)+0(0.8)}{1.338}=\frac{0.147+0.143}{1.338}\approx\frac{0.290}{1.338}\approx0.217,
+\]
+\[
+\pi_1^{\text{new}}=\frac{1.338}{3}\approx0.446 .
+\]
+The night centre moves from 0.2 to about 0.217, toward the photos it is responsible for. The bright photo (0.8) has no pull at all, because night takes none of the responsibility for it.
+
+\textbf{(f)} Both maximize a likelihood with a missing $z$ by alternating two jobs: guess the hidden variable for each data point, then improve the model given those guesses. In EM the guess is the exact responsibility and the update is a closed formula. In a VAE the guess comes from an encoder network $q_\phi(z\mid x)$, and the update is a gradient step on a lower bound (the ELBO).
+% ============================================================
+\part{Week 2: Autoregressive Models}
+% ============================================================
+
+\section{Question 9: The chain rule and what ``autoregressive'' means}
+
+\subsection{Question}
+
+\begin{enumerate}[label=(\alph*)]
+  \item A language model writes the sentence ``the dog barked loudly'' left to right. Write $p(\text{the},\text{dog},\text{barked},\text{loudly})$ with the chain rule. Which tokens are the context for ``barked''?
+  \item Write the same joint in right-to-left order. Are the two joints equal? Are the individual factors equal?
+  \item The model gives the true tokens these left-to-right probabilities: 0.06, 0.02, 0.3, 0.1. Compute the joint probability and its natural log. Use $\log3.6\approx1.281$ and $\log10\approx2.303$.
+  \item A student models the sentence as $p(\text{the})\,p(\text{dog})\,p(\text{barked})\,p(\text{loudly})$. Why is this wrong for text? For which kind of signal would it be exactly right, and how does the chain rule cover that case?
+  \item A classical audio model is $x_t=0.1+0.6\,x_{t-1}+0.3\,x_{t-2}+\varepsilon_t$ with $\varepsilon_t\sim\mathcal{N}(0,0.04)$. The last two samples were $x_{t-1}=0.5$ and $x_{t-2}=0.2$. What is the distribution of $x_t$? What does a \emph{neural} autoregressive model change?
+  \item A bug lets the network see $x_i$ while predicting $x_i$. What happens to the training loss? Show that the ``probabilities'' no longer add up to 1 over all sentences. Why does generation then fail?
+  \item Does a standard PixelCNN or GPT learn many orderings? What kind of model does?
+\end{enumerate}
+
+\subsection{What the question is asking}
+
+The chain rule turns ``the probability of a whole sentence'' into ``the probability of each next word given the words before it''. An autoregressive model learns those next-word predictions with one shared network. The question asks you to write the factorization, use it on numbers, compare it with an independence shortcut, connect it to the old linear AR model, and explain why the network must never peek at the answer.
+
+\subsection{Concepts you need}
+
+\textbf{Already explained:} conditional probability and product rule (\hyperref[c2-2]{Concepts 2.2} and \hyperref[c2-3]{2.3}), independence (\hyperref[c2-5]{Concept 2.5}), directed graphs (\hyperref[c7-4]{Concept 7.4}).
+
+\subsubsection{Concept 9.1: The chain rule of probability}\label{c9-1}
+
+\[
+p(x_1,\dots,x_D)=\prod_{i=1}^{D}p(x_i\mid x_{<i}),\qquad x_{<i}=(x_1,\dots,x_{i-1})
+\]
+\begin{itemize}[nosep]
+  \item \textbf{Symbols:} $x_i$ is the $i$-th piece (a token, a pixel channel, an audio sample) in a chosen order. $x_{<i}$ is the \emph{context}: everything before position $i$. For $i=1$ the context is empty, so the first factor is just $p(x_1)$.
+  \item \textbf{Where it comes from:} The product rule $p(a,b)=p(a)\,p(b\mid a)$, applied again and again. For three pieces:
+  \[
+  p(x_1,x_2,x_3)=p(x_1,x_2)\,p(x_3\mid x_1,x_2)=p(x_1)\,p(x_2\mid x_1)\,p(x_3\mid x_1,x_2).
+  \]
+  \item \textbf{Why it is exact (an identity):} write each factor as a ratio and everything cancels:
+  \[
+  p(x_1)\cdot\frac{p(x_1,x_2)}{p(x_1)}\cdot\frac{p(x_1,x_2,x_3)}{p(x_1,x_2)}=p(x_1,x_2,x_3).
+  \]
+  So it holds for every distribution, with no independence assumed and nothing approximated.
+  \item \textbf{When it holds:} Always, as long as each prefix has nonzero probability, so the divisions make sense.
+  \item \textbf{Intuition:} narrowing down. $p(\text{the})$ is the fraction of all sentences starting with ``the''. Of those, $p(\text{dog}\mid\text{the})$ is the fraction continuing with ``dog''. A fraction of a fraction of a fraction gives the share of all sentences taken by exactly this one.
+  \item \textbf{Independent case:} if each piece ignores the past, $p(x_i\mid x_{<i})=p(x_i)$ and the chain rule becomes the plain product. Independence is a special case, not an exception.
+\end{itemize}
+
+\subsubsection{Concept 9.2: Autoregressive model}\label{c9-2}
+
+``An autoregressive model represents the joint by the chain-rule product and parameterizes each conditional with a shared function of the past.''
+\[
+p_\theta(x_i\mid x_{<i})=f_\theta(x_1,\dots,x_{i-1})
+\]
+\begin{itemize}[nosep]
+  \item \textbf{Symbols:} $f_\theta$ is one neural network (an RNN, a masked CNN or a Transformer). $\theta$ is the same at every position.
+  \item \textbf{What it says:} The network reads the past and outputs a \emph{whole distribution} over the next piece, not a single guess.
+  \item \textbf{Why ``shared'':} without sharing, position $i$ of a $32\times32\times3$ image would need a table entry for every possible prefix, $256^{i-1}$ cases. One shared network learns general rules (``edges tend to continue'') and reuses them everywhere.
+  \item \textbf{Why ``auto'':} the variable is predicted (regressed) from earlier values of \emph{itself}: pixels from pixels, tokens from tokens. There is no separate input stream.
+\end{itemize}
+
+\textbf{The classical linear version (order $p$)}
+\[
+x_t=c+\sum_{k=1}^{p}\phi_k\,x_{t-k}+\varepsilon_t,\qquad\varepsilon_t\sim\mathcal{N}(0,\sigma^2)
+\]
+\begin{itemize}[nosep]
+  \item \textbf{Symbols:} $x_t$ is the value at time $t$, $c$ is a constant, the $\phi_k$ are weights on the last $p$ values, and $\varepsilon_t$ is fresh Gaussian noise.
+  \item \textbf{What it says:} The next value is a weighted sum of recent values plus noise. So $x_t$ given the past is a Gaussian centred at the weighted sum.
+  \item \textbf{Neural version:} keeps the chain-rule factorization, replaces the weighted sum with a network, and replaces the Gaussian noise with a softmax, a Gaussian or a mixture.
+\end{itemize}
+
+\subsubsection{Concept 9.3: The order is part of the model}\label{c9-3}
+
+The chain rule works for any ordering $\pi$ of the pieces:
+\[
+p(x)=\prod_{i=1}^{D}p\big(x_{\pi(i)}\mid x_{\pi(1)},\dots,x_{\pi(i-1)}\big)
+\]
+\begin{itemize}[nosep]
+  \item \textbf{What it says:} Every order gives the same joint, but a different set of conditionals, so the network has to learn a different set of input-to-output jobs.
+  \item \textbf{Natural orders:} text left to right, audio forward in time, images in raster order (a convention).
+  \item \textbf{In practice:} a trained network is only an approximation, so two models trained with different orders usually give slightly different probabilities to the same image. Early positions have little context and are the most uncertain.
+  \item \textbf{Fixed versus any-order:} PixelCNN, PixelRNN and GPT fix \emph{one} order before training and only ever learn that one. Order-agnostic models (for example order-agnostic MADE, XLNet) draw a random order for each training example, so one network learns many orders. That lets you choose the order at use time, but it is a harder learning problem and usually gives worse likelihood.
+\end{itemize}
+
+\subsubsection{Concept 9.4: The directed graph and the causal constraint}\label{c9-4}
+
+In the graph of an autoregressive model, every earlier node points to every later node ($x_1\to x_2$, $x_1\to x_3$, $x_2\to x_3$, and so on). The parents of $x_i$ are exactly its context $x_{<i}$. All arrows point forward, so there is no loop, and you can sample by starting at $x_1$ and moving forward (ancestral sampling, \hyperref[c12-2]{Concept 12.2}).
+
+\textbf{Causal constraint:} the prediction for $x_i$ must not depend on $x_i,x_{i+1},\dots,x_D$. If it does, the product is no longer the joint, and the likelihood is meaningless. Masks exist to enforce this inside networks that naturally look everywhere (\hyperref[c13-1]{Concept 13.1}).
+
+\subsection{Solution}
+
+\textbf{(a)}
+\[
+p(\text{the},\text{dog},\text{barked},\text{loudly})=p(\text{the})\,p(\text{dog}\mid\text{the})\,p(\text{barked}\mid\text{the},\text{dog})\,p(\text{loudly}\mid\text{the},\text{dog},\text{barked}).
+\]
+The context for ``barked'' is ``the dog'' only. ``loudly'' comes later and must not be used.
+
+\textbf{(b)}
+\[
+p(\text{loudly})\,p(\text{barked}\mid\text{loudly})\,p(\text{dog}\mid\text{barked},\text{loudly})\,p(\text{the}\mid\text{dog},\text{barked},\text{loudly}).
+\]
+The joints are equal: the chain rule is an identity for every order. The factors are not. For example, $p(\text{dog}\mid\text{the})$ asks ``which noun follows \emph{the}?'', while $p(\text{dog}\mid\text{barked},\text{loudly})$ asks ``what kind of thing barks loudly?''. Different questions, different numbers, and a different job for the network.
+
+\textbf{(c)}
+\[
+p=0.06\times0.02\times0.3\times0.1=3.6\times10^{-5},
+\]
+\[
+\log p=\log3.6-5\log10\approx1.281-11.513=-10.23\ \text{nats}.
+\]
+Check by adding logs: $\log0.06+\log0.02+\log0.3+\log0.1\approx-2.813-3.912-1.204-2.303=-10.23$.
+
+\textbf{(d)} The product of plain word probabilities assumes the words ignore each other. But ``barked'' is far more likely right after ``the dog'' than in general, so this badly misjudges real sentences. The chain rule keeps every dependency by conditioning on the full history. The independence product would be exactly right for white-noise audio, where each sample is drawn on its own. There the chain rule still holds, and each conditional simply equals the marginal, $p(x_i\mid x_{<i})=p(x_i)$.
+
+\textbf{(e)} The centre is the weighted sum:
+\[
+0.1+0.6(0.5)+0.3(0.2)=0.1+0.3+0.06=0.46,
+\]
+so $x_t\mid x_{t-1},x_{t-2}\sim\mathcal{N}(0.46,\ 0.04)$. A neural autoregressive model keeps the same chain-rule structure. But it replaces the fixed weighted sum with a network that can look at a long history in complicated ways, and it outputs a richer distribution (a softmax over 256 levels, or a mixture).
+
+\textbf{(f)} The network learns to copy: $p(x_i\mid\dots,x_i)\to1$ at every position. The training loss falls toward 0 and looks perfect. But then \emph{every} sentence gets probability $1\times1\times\dots=1$, so adding over all possible sentences gives far more than 1. The result is not a distribution, so the ``likelihood'' and bits per dimension are meaningless. At generation time the answer it learned to copy does not exist yet (it is what we are trying to draw), so the model has learned nothing useful and produces garbage. In graph terms, an arrow points from a node into itself, which breaks the forward-only structure.
+
+\textbf{(g)} No. A standard PixelCNN, PixelRNN or GPT fixes one order (raster for images, left to right for text) and learns only the conditionals of that order. It generalizes to new inputs because it has seen many examples \emph{in that order}. Models that do learn many orders are the order-agnostic (any-order) family, such as order-agnostic MADE and XLNet.
+
+% ============================================================
+\newpage
+\section{Question 10: Raster order, colour channels and bits per dimension}
+
+\subsection{Question}
+
+\begin{enumerate}[label=(\alph*)]
+  \item A $4\times4$ RGB image is flattened in raster order with R, G, B inside each pixel. What is $D$? At which position in the sequence is the \emph{green} value of the pixel in row 2, column 3? Which values are its context?
+  \item For the pixel at row 2, column 3, is the pixel at row 2, column 4 part of its context? What about row 3, column 1?
+  \item For one pixel, PixelRNN gives the true colour values these probabilities: $p(r\mid\text{past})=0.5$, $p(g\mid r,\text{past})=0.25$, $p(b\mid r,g,\text{past})=0.8$. What is the negative log-likelihood of this pixel in nats? Why not predict the three channels independently?
+  \item A $2\times2$ grey image has 4 grey levels (0 to 3). The model gives the true values probabilities 0.5, 0.25, 0.8 and 0.4. Compute $p(x)$, $-\log_2 p(x)$ and the bits per dimension. What is the uniform baseline, and did the model beat it?
+  \item A model reaches 3.0 bpd on $32\times32\times3$ CIFAR-10 images. How many bits (and bytes) would a lossless compressor using it need per image, compared with storing raw 8-bit values? PixelRNN reported about 3.00 bpd and PixelCNN about 3.14. Which is better, and what must be true for the comparison to be fair?
+  \item Write the NLL training loss over a dataset. The slides say training an AR model is ``genuine maximum likelihood''. Name the three obstacles that other families have and AR models avoid.
+\end{enumerate}
+Use $\log 2\approx0.693$, $\log0.8\approx-0.223$, $\log_20.8\approx-0.322$ and $\log_20.4\approx-1.322$.
+
+\subsection{What the question is asking}
+
+The chain rule needs a sequence, but an image is a grid with three colours per pixel. Raster order is the rule that turns the grid into a sequence. Once you have the sequence, the image's probability is exact, and ``bits per dimension'' reports it in a form you can compare across images of different sizes.
+
+\subsection{Concepts you need}
+
+\textbf{Already explained:} chain rule (\hyperref[c9-1]{Concept 9.1}), log-likelihood (\hyperref[c4-2]{Concept 4.2}), code length (\hyperref[c6-4]{Concept 6.4}).
+
+\subsubsection{Concept 10.1: Raster order}\label{c10-1}
+
+\begin{enumerate}[nosep]
+  \item Go through rows from top to bottom.
+  \item Within a row, go through columns from left to right.
+  \item Within a pixel, go through channels in a fixed order: R, then G, then B.
+\end{enumerate}
+An $H\times W$ image with $C$ channels becomes a sequence of length
+\[
+D=H\cdot W\cdot C .
+\]
+For pixel 5 in a $3\times3$ grid, the context is pixels 1 to 4: the whole row above plus the pixel to its left. The right-hand neighbour (pixel 6) is \emph{not} context, even though it is next to it, because it is generated later. When a model paints a face top-down, the left eye can use the forehead above it, and the right eye can later use the left eye. Early (top-left) pixels have almost no context. Late (bottom-right) pixels have nearly the whole image.
+
+\subsubsection{Concept 10.2: Channel order inside one pixel}\label{c10-2}
+
+\[
+p(r,g,b\mid\text{past})=p(r\mid\text{past})\,p(g\mid r,\text{past})\,p(b\mid r,g,\text{past})
+\]
+\begin{itemize}[nosep]
+  \item \textbf{What it says:} The chain rule again, now inside one pixel. Red sees only earlier pixels. Green also sees red. Blue sees red and green.
+  \item \textbf{Why:} the three channels of a pixel are strongly linked. Predicted separately, a sky pixel might get a sky-like red (135), a sky-like green (206) and, by bad luck, a blue of 30: a muddy olive dot in a blue sky. Each value was plausible on its own, but the combination is wrong. With the chain rule, once red and green say ``sky'', blue is pushed toward about 235.
+  \item \textbf{Output:} each channel is a 256-way softmax over intensities 0 to 255. The loss at one pixel is the sum of the three channel cross-entropies, and over the image that sum is $-\log p_\theta(x)$.
+\end{itemize}
+
+\subsubsection{Concept 10.3: Exact likelihood and the NLL loss}\label{c10-3}
+
+\[
+\log p_\theta(x)=\sum_{i=1}^{D}\log p_\theta(x_i\mid x_{<i}),\qquad
+\mathcal{L}(\theta)=-\sum_{n=1}^{N}\sum_{i=1}^{D}\log p_\theta\big(x_i^{(n)}\mid x_{<i}^{(n)}\big)
+\]
+\begin{itemize}[nosep]
+  \item \textbf{Symbols:} $x_i^{(n)}$ is position $i$ of training example $n$. The inner sum scores one example. The outer sum adds over the dataset. The minus sign turns ``maximize log-likelihood'' into ``minimize negative log-likelihood (NLL)'', because optimizers minimize.
+  \item \textbf{What it says:} The image's log-probability is just the sum of per-position log-probabilities. Nothing is approximated. Training is many classification problems sharing one network: ``given the true prefix, did you put high probability on the true next value?''
+  \item \textbf{Special values:} each term is $\le0$ for separate values. A confident correct prediction ($p\approx1$) adds about 0. A surprised one ($p=0.01$) adds $-4.6$, a big penalty.
+\end{itemize}
+
+\subsubsection{Concept 10.4: Bits per dimension}\label{c10-4}
+
+\[
+\text{bpd}(x)=-\frac{1}{D}\log_2 p_\theta(x)=-\frac1D\sum_{i=1}^{D}\log_2 p_\theta(x_i\mid x_{<i})
+\]
+\begin{itemize}[nosep]
+  \item \textbf{Symbols:} $D$ is the number of values (pixels times channels). $\log_2$ gives bits.
+  \item \textbf{What it says:} The average number of bits a compressor built on this model would spend per value. Dividing by $D$ lets you compare images of different sizes.
+  \item \textbf{Baseline:} a uniform guess over 256 levels costs $\log_2256=8$ bits per value. A useful image model must beat 8. For binary pixels the baseline is 1 bit, and for $L$ levels it is $\log_2L$.
+  \item \textbf{Direction:} lower is better (the data is less surprising to the model).
+  \item \textbf{Fair comparison:} same dataset, same preprocessing, and both exact likelihoods (not one exact and one a bound).
+  \item \textbf{Historical numbers (CIFAR-10):} PixelRNN about 3.00, PixelCNN about 3.14, Gated PixelCNN about 3.03, PixelCNN++ about 2.92.
+\end{itemize}
+
+\subsubsection{Concept 10.5: Why AR training is genuine maximum likelihood}\label{c10-5}
+
+\begin{center}
+\begin{tabular}{@{}>{\raggedright\arraybackslash}p{0.14\textwidth}>{\raggedright\arraybackslash}p{0.42\textwidth}>{\raggedright\arraybackslash}p{0.34\textwidth}@{}}
+\toprule
+Family & What blocks the exact $\log p(x)$ & What it trains on instead \\
+\midrule
+VAE & the integral over $z$ cannot be done & a lower bound, the ELBO \\
+GAN & no density is defined at all & an adversarial game with a discriminator \\
+Energy-based & the global constant $Z$ cannot be computed & approximate methods \\
+AR & nothing, if every conditional is normalized and causal & the exact NLL \\
+\bottomrule
+\end{tabular}
+\end{center}
+``Normalized'' means each conditional's probabilities add to exactly 1 for every context (\hyperref[c11-3]{Concept 11.3}). Normalizing locally, one cheap 256-way softmax at a time, guarantees the whole joint adds to 1. The impossible global sum over all images is never needed.
+
+\subsection{Solution}
+
+\textbf{(a)} $D=4\cdot4\cdot3=48$. Pixel (row 2, column 3) is pixel number $(2-1)\cdot4+3=7$ in raster order. Each pixel uses 3 positions, so pixel 7 starts after $6\times3=18$ values. Its R is at 19 and its G is at \textbf{20}. The context is positions 1 to 19: all three channels of row 1 (pixels 1 to 4), all three channels of pixels 5 and 6 (row 2, columns 1 and 2), and the red value of pixel 7 itself.
+
+\textbf{(b)} Row 2, column 4 is pixel 8. It comes \emph{after} pixel 7, so it is not context, even though it is the right-hand neighbour. Row 3, column 1 is pixel 9, also later, so also not context.
+
+\textbf{(c)}
+\[
+-\log0.5-\log0.25-\log0.8=0.693+1.386+0.223\approx2.30\ \text{nats}.
+\]
+(Equivalently $-\log(0.5\times0.25\times0.8)=-\log0.1\approx2.303$.) Predicting the channels independently would ignore how they move together and could produce colour combinations that never occur, like an olive dot in a blue sky. The chain-rule version is exact, so it can represent any relationship between the channels.
+
+\textbf{(d)}
+\[
+p(x)=0.5\times0.25\times0.8\times0.4=0.04,
+\]
+\[
+-\log_2p(x)=1+2+0.322+1.322=4.644\ \text{bits},\qquad
+\text{bpd}=\frac{4.644}{4}\approx1.16 .
+\]
+With 4 levels, a uniform guess costs $\log_24=2$ bits per value (8 bits for the image). The model needs 1.16, so it beats the baseline.
+
+\textbf{(e)} $D=3072$, so $3.0\times3072=9216$ bits, which is 1152 bytes. Raw 8-bit storage needs $8\times3072=24{,}576$ bits, which is 3072 bytes. PixelRNN (3.00) is better than PixelCNN (3.14), because lower bpd means higher likelihood. The comparison is fair only on the same dataset and preprocessing, and with both numbers exact. PixelRNN's edge comes from its Diagonal BiLSTM, which sees the whole causal past. PixelCNN's blind spot (Question 13) costs some likelihood.
+
+\textbf{(f)}
+\[
+\mathcal{L}(\theta)=-\sum_{n=1}^{N}\sum_{i=1}^{D}\log p_\theta\big(x_i^{(n)}\mid x_{<i}^{(n)}\big).
+\]
+AR training avoids: (1) a \emph{variational gap} (a VAE only maximizes a lower bound); (2) a \emph{discriminator} (a GAN has no density and plays a two-network game); (3) an \emph{unknown partition function} (an energy-based model cannot compute $Z$). If every conditional is a normalized distribution and the model is causal, stochastic gradient descent on $\mathcal{L}$ optimizes the true likelihood itself.
+
+% ============================================================
+\newpage
+\section{Question 11: Softmax outputs, temperature and output families}
+
+\subsection{Question}
+
+A language model has read ``The robot picked up the''. For the next token it outputs these logits (raw scores):
+\begin{center}
+\begin{tabular}{@{}lcccc@{}}
+\toprule
+Token & box & ball & cup & sky \\
+\midrule
+Logit $z_k$ & 2.0 & 1.0 & 0.5 & $-1.0$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+Use $e^{2}\approx7.389$, $e^{1}\approx2.718$, $e^{0.5}\approx1.649$, $e^{-1}\approx0.368$, $e^{4}\approx54.60$, $e^{-2}\approx0.135$, $e^{0.25}\approx1.284$, $e^{-0.5}\approx0.607$.
+\begin{enumerate}[label=(\alph*)]
+  \item Compute the softmax probabilities.
+  \item The true next token is ``ball''. What is the training loss at this step, in nats?
+  \item Compute the probabilities at temperature $T=0.5$ and $T=2$. Describe what each does to generated text. What happens as $T\to0$?
+  \item Why must the outputs be normalized? What goes wrong if a model is trained to simply ``raise the raw score of the true token''?
+  \item Choose the conditional distribution for each: a binary (black/white) pixel; an 8-bit colour channel; a real-valued audio sample; an index into a VQ codebook. For the binary pixel, what probability does a logit of 1.5 give? (Use $e^{-1.5}\approx0.223$.) Why does PixelCNN++ use a mixture of logistics instead of a 256-way softmax?
+\end{enumerate}
+
+\subsection{What the question is asking}
+
+At every step an AR model turns ``the text so far'' into a probability for every possible next token. This question walks through that conversion (softmax), how the loss is read from it, how temperature reshapes it during generation, and which output distribution fits which kind of data.
+
+\subsection{Concepts you need}
+
+\textbf{Already explained:} AR model outputs a distribution (\hyperref[c9-2]{Concept 9.2}), NLL loss (\hyperref[c10-3]{Concept 10.3}).
+
+\subsubsection{Concept 11.1: The softmax output of a text model}\label{c11-1}
+
+\[
+p(x_t\mid x_{<t})=\text{softmax}\big(W\,h_\theta(x_{<t})\big),\qquad
+p(x_t=k\mid x_{<t})=\frac{e^{z_k}}{\sum_{j=1}^{|V|}e^{z_j}}
+\]
+\begin{itemize}[nosep]
+  \item \textbf{Symbols:} $h_\theta(x_{<t})$ is one vector summarizing the context (from an RNN or Transformer). $W$ has one row per vocabulary token, so $z=Wh$ gives one \emph{logit} $z_k$ per token. $|V|$ is the vocabulary size.
+  \item \textbf{What it says:} Three steps. Summarize the context, score every token, then convert scores to probabilities. $e^{z}$ makes every score positive, and dividing by the total makes them add to 1.
+  \item \textbf{Special values:} A gap of 1 in logits becomes a factor of $e\approx2.7$ in probability, so a slightly higher logit can dominate.
+  \item \textbf{Uses:} in training, read off the probability of the true token and add $-\log$ of it to the loss. In generation, draw a token from the vector.
+\end{itemize}
+
+\subsubsection{Concept 11.2: Temperature}\label{c11-2}
+
+\[
+p_T(x_i=k)=\frac{e^{z_k/T}}{\sum_j e^{z_j/T}}
+\]
+\begin{itemize}[nosep]
+  \item \textbf{Symbols:} $T>0$ is the temperature. Divide every logit by $T$ before the softmax.
+  \item \textbf{What it says:} $T=1$ is the trained distribution. $T<1$ sharpens it (lower entropy, more repetitive, mode-seeking). $T>1$ flattens it (more diverse, but more often invalid or off-topic).
+  \item \textbf{Special values:} $T\to0$ puts all probability on the highest logit. This is \emph{greedy} decoding.
+\end{itemize}
+
+\subsubsection{Concept 11.3: Every conditional must be normalized}\label{c11-3}
+
+\[
+\sum_k p_\theta(x_i=k\mid x_{<i})=1\quad\text{and}\quad p_\theta(x_i=k\mid x_{<i})\ge0\qquad\text{for every position and every context}
+\]
+\begin{itemize}[nosep]
+  \item \textbf{What it says:} At each position, for whatever context the model sees, the probabilities over all next values add to exactly 1 (for continuous values, the density's area is 1).
+  \item \textbf{Why it matters:} it creates a fixed budget. Raising $p(\text{ball}\mid\text{context})$ forces other tokens down. This competition is what makes the model learn which continuations are actually likely. Raw logits have no budget: a model could push every score up and ``improve'' without learning anything.
+  \item \textbf{Payoff:} if every local conditional adds to 1, the chain rule guarantees the whole joint adds to 1 over all sentences or images.
+\end{itemize}
+
+\subsubsection{Concept 11.4: Which conditional distribution for which data}\label{c11-4}
+
+\begin{center}
+\begin{tabular}{@{}>{\raggedright\arraybackslash}p{0.36\textwidth}>{\raggedright\arraybackslash}p{0.55\textwidth}@{}}
+\toprule
+Data at position $i$ & Conditional distribution \\
+\midrule
+Token, or pixel level 0 to 255 & categorical: softmax over $|V|$ or 256 classes \\
+Binary pixel & Bernoulli through a sigmoid, $\sigma(z)=1/(1+e^{-z})$ \\
+Real-valued audio sample & Gaussian, or a mixture of logistics \\
+Index into a VQ codebook & softmax over the codebook indices \\
+\bottomrule
+\end{tabular}
+\end{center}
+\textbf{Mixture of logistics (PixelCNN++):} treats intensity as nearly continuous. The probability of an integer level is the area of the curve over that level's small bin. It needs fewer parameters than a 256-way softmax and ``knows'' that 200 and 201 are similar colours, which a softmax does not.
+
+\subsection{Solution}
+
+\textbf{(a)} Exponentiate: $7.389,\ 2.718,\ 1.649,\ 0.368$. The total is $12.124$. Divide:
+\[
+p(\text{box})\approx0.609,\quad p(\text{ball})\approx0.224,\quad p(\text{cup})\approx0.136,\quad p(\text{sky})\approx0.030 .
+\]
+
+\textbf{(b)} Loss $=-\log0.224\approx1.50$ nats. The model put most of its probability on ``box'', so it is penalized. A gradient step will raise ``ball'' and, because of the budget, lower the others.
+
+\textbf{(c)} $T=0.5$ (logits doubled to $4,2,1,-2$): exponentials $54.60,\ 7.389,\ 2.718,\ 0.135$, total $64.84$:
+\[
+(0.842,\ 0.114,\ 0.042,\ 0.002).
+\]
+$T=2$ (logits halved to $1,0.5,0.25,-0.5$): exponentials $2.718,\ 1.649,\ 1.284,\ 0.607$, total $6.258$:
+\[
+(0.434,\ 0.264,\ 0.205,\ 0.097).
+\]
+Low temperature makes ``box'' almost certain. Text becomes safe and repetitive. High temperature spreads probability out, so ``sky'' rises from 3\% to almost 10\%. Text becomes more varied but more often odd (``picked up the sky''). As $T\to0$, ``box'' gets probability 1: greedy decoding.
+
+\textbf{(d)} Normalization makes each conditional a true distribution, and that makes the chain-rule product a true $p(\text{sentence})$, so the NLL is a real likelihood. Without it, a model trained to ``raise the true token's score'' can push every score toward infinity. The loss improves while the model learns nothing, because nothing forces a trade-off between tokens.
+
+\textbf{(e)} Binary pixel: Bernoulli through a sigmoid. Logit 1.5 gives
+\[
+\sigma(1.5)=\frac{1}{1+e^{-1.5}}\approx\frac{1}{1.223}\approx0.818
+\]
+probability of white. 8-bit channel: 256-way softmax (or a mixture of logistics). Audio sample: Gaussian or mixture of logistics. VQ index: softmax over the codebook. A mixture of logistics is used because it needs fewer outputs than 256 classes per channel and builds in the idea that neighbouring intensities are similar. That is a better fit for smooth colour.
+
+% ============================================================
+\newpage
+\section{Question 12: Teacher forcing, ancestral sampling and exposure bias}
+
+\subsection{Question}
+
+A tiny AR model makes 3-pixel binary images $(x_1,x_2,x_3)$. Its conditionals are:
+\begin{center}
+\begin{tabular}{@{}lc@{}}
+\toprule
+Conditional & Probability that the pixel is 1 \\
+\midrule
+$p(x_1=1)$ & 0.6 \\
+$p(x_2=1\mid x_1=1)$, $p(x_2=1\mid x_1=0)$ & 0.8, \ 0.3 \\
+$p(x_3=1\mid x_1,x_2)$ for $(1,1),(1,0),(0,1),(0,0)$ & 0.9, \ 0.5, \ 0.4, \ 0.1 \\
+\bottomrule
+\end{tabular}
+\end{center}
+\begin{enumerate}[label=(\alph*)]
+  \item Under teacher forcing, compute the training loss (in nats) on the training image $(1,1,0)$. Use $\log0.6\approx-0.511$, $\log0.8\approx-0.223$ and $\log0.1\approx-2.303$.
+  \item Can the three loss terms be computed at the same time? Why?
+  \item Draw one sample with the uniform random numbers $u=(0.35,\ 0.85,\ 0.20)$, using the rule ``set the pixel to 1 if $u$ is less than $p(\text{pixel}=1\mid\text{context})$''. Which conditional did you use at step 3, and why can you not know it in advance?
+  \item What is the probability that ancestral sampling produces $(1,1,1)$?
+  \item Define exposure bias. Suppose, as a rough illustration, each step has a 1\% chance of going off track, independently. What is the chance of no slip in 10 steps? In 3072 steps? What does scheduled sampling do, and what does it cost?
+  \item Inpainting: $x_1=0$ is known and $x_2,x_3$ are missing. Describe how to fill them in, and give $p(x_2=1)$ in that procedure. If instead $x_3$ were known and $x_2$ missing, what could a raster model use when drawing $x_2$?
+  \item How many sequential steps does it take to sample one $64\times64$ RGB image?
+\end{enumerate}
+
+\subsection{What the question is asking}
+
+An AR model is used in two ways. In training, we score real data, and every prefix is real. In generation, the model builds data one piece at a time and feeds its own draws back in. The question asks you to do both on a tiny model, see why generation must be sequential, and see what goes wrong because the two settings differ.
+
+\subsection{Concepts you need}
+
+\textbf{Already explained:} chain rule and NLL (\hyperref[c9-1]{Concept 9.1}, \hyperref[c10-3]{Concept 10.3}), the forward-only graph (\hyperref[c9-4]{Concept 9.4}).
+
+\subsubsection{Concept 12.1: Teacher forcing}\label{c12-1}
+
+During training, the context $x_{<i}$ is taken from the \emph{true} training example, never from the model's own guesses.
+\begin{itemize}[nosep]
+  \item \textbf{Why it is valid maximum likelihood:} the chain rule says $\log p_\theta(x)=\sum_i\log p_\theta(x_i\mid x_{<i})$ with the \emph{true} prefixes. Teacher forcing computes exactly these terms.
+  \item \textbf{Why it is fast:} all true prefixes are known in advance, so all $D$ predictions can be computed in one parallel pass. This is why a PixelCNN trains over a whole image in one forward pass.
+  \item \textbf{Why it does not produce a sample:} it only scores data that already exists. Nothing is drawn and fed back.
+\end{itemize}
+
+\subsubsection{Concept 12.2: Ancestral sampling}\label{c12-2}
+
+\[
+x_1\sim p_\theta(x_1),\quad x_2\sim p_\theta(x_2\mid x_1),\quad\dots,\quad x_D\sim p_\theta(x_D\mid x_{<D})
+\]
+\begin{itemize}[nosep]
+  \item \textbf{What it says:} Draw each piece from its conditional \emph{after} the earlier pieces have been drawn, and append it to the context. This follows the arrows of the graph and gives an exact sample from $p_\theta$.
+  \item \textbf{Why it is sequential:} the probabilities at step $i$ depend on what was actually drawn at earlier steps. You cannot compute them before those draws exist.
+  \item \textbf{Cost:} $D$ sequential network evaluations. A $32\times32\times3$ image needs 3072 steps.
+\end{itemize}
+
+\subsubsection{Concept 12.3: Exposure bias and scheduled sampling}\label{c12-3}
+
+\textbf{Exposure bias:} training always conditions on true prefixes, but sampling conditions on the model's own draws, including its mistakes. At sampling time the network sees contexts unlike those it was trained on, and errors pile up along the sequence.
+\begin{itemize}[nosep]
+  \item Long sequences (a $256\times256$ image, a long essay) suffer more: there are more steps where a first slip can happen, and more later steps for it to spread into.
+  \item \textbf{Scheduled sampling} sometimes feeds the model its own token during training. This narrows the train/test gap, but the objective is no longer pure maximum likelihood (it biases the likelihood).
+  \item Pixel models still give globally coherent images because local statistics are strong. Fine long-range structure is the hard part.
+\end{itemize}
+
+\subsubsection{Concept 12.4: Inpainting is clamped ancestral sampling}\label{c12-4}
+
+Split pixels into observed ones (held fixed) and missing ones. Run ancestral sampling in raster order. Copy each observed pixel at its turn, and draw each missing pixel from its conditional, which sees the original known pixels before it plus any missing pixels already drawn. No new loss or network is needed: the joint already contains the conditionals. The limit: a raster model can only condition on what comes \emph{earlier} in its order. Known pixels below or to the right of a hole are ignored when drawing the hole.
+
+\subsection{Solution}
+
+\textbf{(a)} The true prefixes are used at every step:
+\[
+-\big[\log p(x_1=1)+\log p(x_2=1\mid1)+\log p(x_3=0\mid1,1)\big]=-[\log0.6+\log0.8+\log0.1]
+\]
+\[
+=0.511+0.223+2.303\approx3.04\ \text{nats}.
+\]
+Most of the loss comes from step 3: the model thought $(1,1)$ is followed by 1 with 90\%, but the true pixel was 0.
+
+\textbf{(b)} Yes. All three contexts (empty, $x_1=1$, and $(1,1)$) come from the training image, so they are known before anything runs. All three predictions can be made in one parallel pass.
+
+\textbf{(c)} Step 1: $0.35<0.6$, so $x_1=1$. Step 2: use $p(x_2=1\mid x_1=1)=0.8$; $0.85<0.8$ is false, so $x_2=0$. Step 3: use $p(x_3=1\mid1,0)=0.5$; $0.20<0.5$, so $x_3=1$. The sample is $(1,0,1)$. At step 3 we used the conditional for prefix $(1,0)$, which exists only because step 2 happened to draw 0. A different draw would have required $p(x_3=1\mid1,1)=0.9$ instead. The path cannot be precomputed. It is built one draw at a time.
+
+\textbf{(d)}
+\[
+p(1,1,1)=0.6\times0.8\times0.9=0.432 .
+\]
+
+\textbf{(e)} Exposure bias is the mismatch between training prefixes (always true) and sampling prefixes (the model's own, possibly wrong, draws). Under the rough 1\% illustration:
+\[
+0.99^{10}\approx0.90,\qquad 0.99^{3072}\approx4\times10^{-14}.
+\]
+A short reply almost always stays on track. A full $32\times32\times3$ image almost never stays perfectly on track, so errors compound. Scheduled sampling feeds the model's own draws during part of training to narrow the gap, at the cost of no longer being pure maximum likelihood.
+
+\textbf{(f)} Clamp $x_1=0$. Draw $x_2$ from $p(x_2\mid x_1=0)$, so $p(x_2=1)=0.3$. Then draw $x_3$ from $p(x_3\mid0,x_2)$ using the $x_2$ just drawn (0.4 if $x_2=1$, 0.1 if $x_2=0$). If $x_3$ were known and $x_2$ missing, a raster model drawing $x_2$ can use only $x_1$. The known $x_3$ comes later in the order, so it is ignored.
+
+\textbf{(g)} $64\times64\times3=12{,}288$ sequential steps (one per channel value).
+
+% ============================================================
+\newpage
+\section{Question 13: Masked convolutions, the blind spot and Gated PixelCNN}
+
+\subsection{Question}
+
+\begin{enumerate}[label=(\alph*)]
+  \item Write the $5\times5$ Mask A and Mask B for a raster-order PixelCNN.
+  \item Which layer uses Mask A? A colleague uses Mask B on every layer, including the first. What leaks, and what happens to the likelihood?
+  \item The grid below shows, for a stack of three masked $3\times3$ layers, which earlier pixels reach the target X. Mark the blind spot. Are blind-spot pixels future pixels?
+  \begin{center}
+  \begin{tabular}{@{}c|ccccccccc@{}}
+  row & $-4$ & $-3$ & $-2$ & $-1$ & 0 & $+1$ & $+2$ & $+3$ & $+4$ \\
+  \midrule
+  $-3$ & . & o & o & o & o & o & o & o & ? \\
+  $-2$ & . & o & o & o & o & o & o & ? & ? \\
+  $-1$ & . & o & o & o & o & o & ? & ? & ? \\
+  $0$ & . & o & o & o & X & & & & \\
+  \end{tabular}
+  \end{center}
+  (o: reaches X. .: earlier pixel just outside the field. Blank: future. ?: to be classified. Columns are offsets from the target's column.)
+  \item How does Gated PixelCNN remove the blind spot?
+  \item Compute the gated activation $y=\tanh(a)\cdot\sigma(b)$ for $(a,b)=(1.0,-2)$ and $(a,b)=(-0.5,3)$. Use $\tanh1\approx0.762$, $\tanh(-0.5)\approx-0.462$, $\sigma(-2)\approx0.119$, $\sigma(3)\approx0.953$. What is the gate doing?
+  \item A conditional PixelCNN is given $h=\text{``dog''}$. Write $p(x\mid h)$. Does $h$ break causality? How is $p(x_i\mid x_{<i})$ different from $p(x\mid h)$?
+  \item Write the $4\times4$ causal attention mask for a GPT-style model. How is it related to Mask A?
+  \item The mask is applied only once, at initialization. What can go wrong? What unit test catches it?
+\end{enumerate}
+
+\subsection{What the question is asking}
+
+A convolution window naturally looks at all its neighbours, including the pixel it must predict and pixels to the right and below, which do not exist yet at generation time. Masks zero out those connections. The question asks you to write the masks, explain the two mask types, find the region that stacked masks miss by accident (the blind spot), and connect the same idea to Transformers.
+
+\subsection{Concepts you need}
+
+\textbf{Already explained:} the causal constraint (\hyperref[c9-4]{Concept 9.4}), raster order (\hyperref[c10-1]{Concept 10.1}), channel order (\hyperref[c10-2]{Concept 10.2}).
+
+\subsubsection{Concept 13.1: Masked convolution, Mask A and Mask B}\label{c13-1}
+
+A PixelCNN computes the conditionals with convolutions. A \emph{mask} is a grid of 1s and 0s multiplied into the filter weights: 1 means ``allowed to look'', 0 means ``blocked''. Centred on the target:
+\begin{itemize}[nosep]
+  \item the rows above are the past, so they are allowed;
+  \item on the same row, pixels to the left are allowed and pixels to the right are blocked;
+  \item the rows below are the future, so they are blocked;
+  \item the centre is the only place where the two masks differ.
+\end{itemize}
+\[
+\text{Mask A }(3\times3)=\begin{pmatrix}1&1&1\\1&0&0\\0&0&0\end{pmatrix},\qquad
+\text{Mask B }(3\times3)=\begin{pmatrix}1&1&1\\1&1&0\\0&0&0\end{pmatrix}
+\]
+\begin{itemize}[nosep]
+  \item \textbf{Mask A, first layer only:} the centre is 0, because the first layer reads the raw image, and the centre holds the very value being predicted.
+  \item \textbf{Mask B, every later layer:} the centre is allowed. After layer 1, the feature at the centre was built (thanks to Mask A) only from past pixels, so reading it cannot leak the answer. Allowing it lets later layers reuse what was already gathered at that position. For colour, the mask is a block pattern over channels: G may read R features, B may read R and G, and no channel reads a later channel.
+\end{itemize}
+
+\subsubsection{Concept 13.2: Receptive field and the blind spot}\label{c13-2}
+
+The \emph{receptive field} is the set of input pixels that can influence one output. Stacking layers grows it. Each masked layer can reach one step up-right, but never right on its own row. So in the row $k$ above the target, the stack reaches at most $k$ columns to the right. Everything further right in those upper rows is the \textbf{blind spot}: pixels that are legal past (earlier in raster order) but that no chain of masked windows ever reaches, however deep the stack. Row LSTM has a related gap. Diagonal BiLSTM was designed to avoid it.
+
+\subsubsection{Concept 13.3: Gated PixelCNN}\label{c13-3}
+
+Two stacks fix the blind spot:
+\begin{itemize}[nosep]
+  \item \textbf{Vertical stack:} reads every row strictly above the current pixel, across the full width. It never looks at the current row, so it cannot leak the target, and it has no blind spot above.
+  \item \textbf{Horizontal stack:} reads the current row, left of the pixel only (masked), and also receives the vertical stack's features.
+\end{itemize}
+\textbf{Gated activation}
+\[
+y=\tanh(W_f*x)\odot\sigma(W_g*x)
+\]
+\begin{itemize}[nosep]
+  \item \textbf{Symbols:} $*$ is convolution. $\odot$ is elementwise multiplication. $\tanh$ gives a candidate feature between $-1$ and 1. $\sigma$ (sigmoid) gives a gate between 0 and 1.
+  \item \textbf{What it says:} the gate decides how much of each candidate feature passes. A gate near 0 switches a feature off where the local pattern does not need it. A plain ReLU convolution cannot do this kind of switching.
+\end{itemize}
+
+\subsubsection{Concept 13.4: Conditional PixelCNN}\label{c13-4}
+
+\[
+p(x\mid h)=\prod_{i=1}^{D}p(x_i\mid x_{<i},h),\qquad
+y=\tanh(W_f*x+V_fh)\odot\sigma(W_g*x+V_gh)
+\]
+\begin{itemize}[nosep]
+  \item \textbf{Symbols:} $h$ is extra information: a class label, a segmentation map, or a code. $V_f$ and $V_g$ project it into the gate.
+  \item \textbf{What it says:} every conditional also sees $h$, so you can ask for a kind of image.
+  \item \textbf{Causality:} $h$ is not a function of future pixels, so adding it everywhere does not break causality.
+  \item \textbf{Two different ``conditionals'':} $p(x_i\mid x_{<i})$ conditions on the image's own past (the autoregressive part). $p(x\mid h)$ conditions the whole image on an outside variable. Both appear together in $p(x_i\mid x_{<i},h)$.
+\end{itemize}
+
+\subsubsection{Concept 13.5: The causal attention mask}\label{c13-5}
+
+In a Transformer, attention scores form a $T\times T$ grid (query row $i$, key column $j$). The causal mask sets every future key ($j>i$) to $-\infty$ before the softmax. Since $e^{-\infty}=0$, token $i$ attends only to tokens $1,\dots,i$. Its own position is included, because that slot holds the previous token's embedding, not the answer. This is the same constraint as PixelCNN, in a different architecture, with the same NLL $\sum_t-\log p(x_t\mid x_{<t})$.
+
+\subsubsection{Concept 13.6: The implementation hazard}\label{c13-6}
+
+Apply the mask on \emph{every} forward pass (store it as a fixed buffer, not as a trainable parameter). If it is applied only at initialization, weight decay, momentum or ordinary gradient updates can bring forbidden weights back to life. Unit test: change pixel $j$ and check that the output (logits) at every earlier pixel $i<j$ does not change.
+
+\subsection{Solution}
+
+\textbf{(a)} In a $5\times5$ window the centre is at row 3, column 3. The two rows above are allowed. The two pixels left of the centre are allowed. The rest is blocked.
+\[
+\text{Mask A}=\begin{pmatrix}1&1&1&1&1\\1&1&1&1&1\\1&1&0&0&0\\0&0&0&0&0\\0&0&0&0&0\end{pmatrix},\qquad
+\text{Mask B}=\begin{pmatrix}1&1&1&1&1\\1&1&1&1&1\\1&1&1&0&0\\0&0&0&0&0\\0&0&0&0&0\end{pmatrix}.
+\]
+
+\textbf{(b)} Mask A is used on the first layer only. With Mask B on the first layer, the centre weight reads the raw value $x_i$ while predicting $x_i$. The network can learn to copy its input: training loss looks near perfect, every conditional goes toward 1, the ``likelihood'' is meaningless, and samples are garbage, because at generation time the value to copy does not exist yet.
+
+\textbf{(c)} Every ``?'' is \textbf{blind spot}. Row $-1$ is reached only up to $+1$, so $+2,+3,+4$ are blind. Row $-2$ is reached up to $+2$, so $+3,+4$ are blind. Row $-3$ is reached up to $+3$, so $+4$ is blind. These pixels are \emph{not} future: they come earlier in raster order, so they are legal context that the stack fails to see. Future pixels are blocked on purpose (correct). Blind-spot pixels are lost by accident (a weakness). Adding more layers grows the field further, but the upper-right wedge stays out of reach. The ``.'' pixels on the left, by contrast, would be reached by adding one more layer.
+
+\textbf{(d)} The vertical stack reads every row above at full width, so the upper-right region is covered. The horizontal stack covers the current row to the left. Adding the two gives each pixel its full causal past.
+
+\textbf{(e)}
+\[
+y_1=0.762\times0.119\approx0.091,\qquad y_2=-0.462\times0.953\approx-0.440 .
+\]
+In the first case the candidate feature is strong (0.762), but the gate is nearly closed (0.119), so little passes. In the second case the gate is almost fully open, so nearly all of the candidate $-0.462$ passes. The gate lets the network decide, location by location, which features matter.
+
+\textbf{(f)}
+\[
+p(x\mid h=\text{dog})=\prod_{i=1}^{D}p(x_i\mid x_{<i},h=\text{dog}).
+\]
+$h$ does not break causality: it is the same at every pixel and does not depend on future pixels. $p(x_i\mid x_{<i})$ is about the image's own past, while $p(x\mid h)$ conditions the whole image on an outside request. A conditional PixelCNN uses both at once.
+
+\textbf{(g)} Rows are queries, columns are keys. 0 means allowed (left unchanged) and $-\infty$ means blocked:
+\[
+\begin{pmatrix}0&-\infty&-\infty&-\infty\\0&0&-\infty&-\infty\\0&0&0&-\infty\\0&0&0&0\end{pmatrix}
+\]
+It is the same causal rule as PixelCNN masking (the slides call it ``Mask A applied to attention scores''). The future is blocked, so token $t$ is predicted from tokens before it only.
+
+\textbf{(h)} Forbidden weights can drift away from 0 during training (through weight decay, momentum, or a bug that updates the raw weights), so future pixels start leaking and the likelihood becomes invalid without any obvious error. Fix: multiply by the mask on every forward pass. Test: edit a pixel $j$ and confirm that the logits at all earlier positions $i<j$ are unchanged.
+
+% ============================================================
+\newpage
+\section{Question 14: PixelRNN versus PixelCNN, costs, and autoregression today}
+
+\subsection{Question}
+
+\begin{enumerate}[label=(\alph*)]
+  \item Compare Row LSTM and Diagonal BiLSTM: what context does each pixel see? Why does PixelRNN not just run a plain 1D LSTM over the flattened image?
+  \item One LSTM step has forget gate $f=0.9$, previous cell state $c_{\text{prev}}=2$, input gate $i=0.5$, candidate value $0.4$ and output gate $o=0.5$. Compute the new cell state $c$ and output $h$. Use $\tanh2\approx0.964$. What would $f=0$ mean?
+  \item Fill in for PixelRNN (Diagonal BiLSTM) and PixelCNN: full causal past? training parallelism? sampling cost? likelihood?
+  \item How many sequential sampling steps does a $256\times256$ RGB pixel model need? If a VQ-VAE first compresses the image to a $32\times32$ grid of codes and an AR model generates the codes, how many steps?
+  \item WaveNet is a dilated causal 1D convolution (a 1D PixelCNN ``with holes''). With kernel size 2 and dilations $1,2,4,\dots,512$ (10 layers), how many past samples can one output see?
+  \item List four limitations of pixel-level AR models. Explain ``likelihood is not perception''.
+  \item What is the hybrid model ``a VAE with an autoregressive decoder''? Is its likelihood exact?
+\end{enumerate}
+
+\subsection{What the question is asking}
+
+Both PixelRNN and PixelCNN give exact likelihoods. They differ in how they compute the conditionals, which affects speed and what context each pixel sees. The question asks you to compare them, compute one LSTM step, count sampling costs, and place autoregression in modern systems (GPT, WaveNet, VQ-VAE).
+
+\subsection{Concepts you need}
+
+\textbf{Already explained:} sampling cost (\hyperref[c12-2]{Concept 12.2}), blind spot and Gated PixelCNN (\hyperref[c13-2]{Concepts 13.2} and \hyperref[c13-3]{13.3}).
+
+\subsubsection{Concept 14.1: PixelRNN}\label{c14-1}
+
+PixelRNN treats the image as a raster-order sequence and uses LSTM units so the context can, in principle, reach every earlier pixel. Its output is a 256-way softmax per channel with R $\to$ G $\to$ B conditioning, and the loss at a pixel is the sum of three cross-entropies.
+\begin{itemize}[nosep]
+  \item \textbf{Why not a plain 1D LSTM on the flattened image?} It would be a valid AR model, but it moves strictly left to right and only then jumps to the next row. It does not share work across a row, and its sense of 2D neighbourhood is weak.
+  \item \textbf{Row LSTM:} sweeps a whole row at once with a 1D convolution inside the LSTM, and receives a summary of the row above (through a masked triangular kernel). Its receptive field is a triangle growing upward, which misses some upper corners of the past.
+  \item \textbf{Diagonal BiLSTM:} scans along diagonals in two directions, after skewing the feature maps so a diagonal becomes a row. Each pixel sees \emph{all} pixels above it and to its left: the full causal past. It gives the better likelihood but is slower.
+  \item \textbf{Residual connections} let a 12-layer stack train. Depth grows the effective context.
+\end{itemize}
+
+\subsubsection{Concept 14.2: The LSTM cell (only what PixelRNN uses)}\label{c14-2}
+
+\[
+c=f\odot c_{\text{prev}}+i\odot\tanh(\cdots),\qquad h=o\odot\tanh(c)
+\]
+\begin{itemize}[nosep]
+  \item \textbf{Symbols:} $c$ is the cell state (long memory). $h$ is the hidden state (output). The gates $f$ (forget), $i$ (input) and $o$ (output) are sigmoids, so they lie between 0 and 1. Each is computed from the current input and the previous $h$ by convolutions, so many pixels update together.
+  \item \textbf{What it says:} keep a fraction $f$ of the old memory, add a fraction $i$ of a new candidate, and reveal a fraction $o$ of the squashed memory as output.
+  \item \textbf{Special values:} $f=0$ wipes the old memory. $f=1$ keeps it all. $i=0$ ignores the new input.
+\end{itemize}
+
+\subsubsection{Concept 14.3: Strengths and limitations of pixel AR models}\label{c14-3}
+
+\textbf{Strengths:} exact $\log p(x)$, comparable across papers and usable for compression; stable training (cross-entropy on a softmax, no minimax game, no posterior collapse, no partition function); sharp local texture; easy conditioning and inpainting.
+
+\textbf{Limitations:}
+\begin{itemize}[nosep]
+  \item \textbf{Slow samples:} cost grows with the number of pixels; a megapixel image needs a million sequential draws.
+  \item \textbf{No explicit latent:} you cannot pick a code $z$ and decode, or interpolate between codes. Edits are done by clamping pixels or conditioning.
+  \item \textbf{Exposure bias and order artifacts:} raster models can leave row-wise error patterns. The first pixels of a row are the least informed.
+  \item \textbf{Likelihood is not perception:} a model can spend probability on noise humans cannot see and look worse than a GAN that has no likelihood at all.
+  \item \textbf{Expensive softmaxes:} 256 classes $\times$ 3 channels $\times$ every pixel. Mixtures of logistics reduce this.
+\end{itemize}
+
+\subsubsection{Concept 14.4: Where autoregression lives today}\label{c14-4}
+
+\begin{itemize}[nosep]
+  \item \textbf{Text:} decoder-only Transformers (GPT and successors) use PixelRNN's factorization with self-attention. Their causal mask plays the role of Mask A.
+  \item \textbf{Audio:} WaveNet is a dilated causal 1D convolution. ``Dilated'' means the filter taps are spread out with gaps, and doubling the gap each layer makes the receptive field grow exponentially with depth.
+  \item \textbf{Images, indirectly:} a VQ-VAE compresses an image to a short grid of discrete codes, and an AR Transformer models that grid. Sampling cost follows the number of codes, not pixels.
+  \item \textbf{Video and speech tokens:} codecs turn signals into tokens, and an AR (or masked) model generates them. Masked BERT-style models are not ancestral AR models.
+\end{itemize}
+
+\subsection{Solution}
+
+\textbf{(a)} Row LSTM: each pixel sees a triangle growing upward from the row above, so some upper-corner past pixels are missed. Diagonal BiLSTM: each pixel sees every pixel above and to its left, the full causal past. A plain 1D LSTM on the flattened image is valid but processes strictly one pixel after another, does not share computation across a row, and has a weak 2D spatial bias. PixelRNN builds 2D locality into the recurrence.
+
+\textbf{(b)}
+\[
+c=0.9\times2+0.5\times0.4=1.8+0.2=2.0,\qquad h=0.5\times\tanh(2.0)\approx0.5\times0.964=0.482 .
+\]
+$f=0$ would erase the old memory completely, so the new cell state would be only the gated new candidate.
+
+\textbf{(c)}
+\begin{center}
+\begin{tabular}{@{}>{\raggedright\arraybackslash}p{0.24\textwidth}>{\raggedright\arraybackslash}p{0.33\textwidth}>{\raggedright\arraybackslash}p{0.33\textwidth}@{}}
+\toprule
+ & PixelRNN (Diagonal BiLSTM) & PixelCNN \\
+\midrule
+Full causal past? & yes & no, blind spot (fixed by Gated PixelCNN) \\
+Training parallelism & limited, recurrent steps & full image in one pass \\
+Sampling cost & $O(D)$ sequential steps & $O(D)$ sequential steps \\
+Likelihood & exact; strong & exact; a little worse (closer after the gate fix) \\
+\bottomrule
+\end{tabular}
+\end{center}
+Note that \emph{sampling} is sequential for both. PixelCNN is only faster at \emph{training}.
+
+\textbf{(d)} $256\times256\times3=196{,}608$ sequential steps. With a $32\times32$ code grid, $1024$ steps (one per code), about 190 times fewer.
+
+\textbf{(e)} Each layer with kernel 2 and dilation $d$ reaches $d$ steps further back. The total reach is
+\[
+1+(1+2+4+\dots+512)=1+1023=1024 \text{ samples}.
+\]
+Ten layers cover 1024 samples. That is the exponential growth that makes WaveNet practical for audio.
+
+\textbf{(f)} Four limitations: slow sequential sampling; no explicit latent code; exposure bias and row-wise artifacts; expensive softmaxes (also: likelihood is not perception). ``Likelihood is not perception'' means a high likelihood does not guarantee images that look good to people. The model may spend probability on tiny pixel noise humans never notice, while a GAN with no likelihood at all can look sharper.
+
+\textbf{(g)} The decoder is autoregressive given $z$:
+\[
+p(x\mid z)=\prod_i p(x_i\mid x_{<i},z).
+\]
+The chain-rule part is exact \emph{given $z$}, but the model still has to integrate over $z$. So the overall $\log p(x)$ is still only lower-bounded by the ELBO, not exact. (Such strong decoders also risk posterior collapse, \hyperref[c19-2]{Concept 19.2}.)
+% ============================================================
+\part{Week 3: Variational Autoencoders}
+% ============================================================
+
+\section{Question 15: The pen story with a new landing}
+
+\subsection{Question}
+
+A pen is pulled by a hidden force and released. You record only where it lands.
+\[
+p(z)=\mathcal{N}(0,1),\qquad p(x\mid z)=\mathcal{N}(z,1),\qquad\text{observed landing }x=3 .
+\]
+\begin{enumerate}[label=(\alph*)]
+  \item Show that $p(x)=\mathcal{N}(0,2)$. Then compute $\log p(3)$ using
+  \[
+  \log p(x)=-\tfrac12\log(4\pi)-\frac{x^2}{4}.
+  \]
+  \item Find the true posterior $p(z\mid x=3)$ by completing the square. Explain its mean and variance in words.
+  \item To draw a new landing, do you sample $z$ from $p(z)$ or from $q_\phi(z\mid x=3)$? When is the encoder used?
+  \item Replace the decoder with $p(x\mid z)=\mathcal{N}(f_\theta(z),1)$, where $f_\theta$ is a neural network. Which closed forms are lost?
+  \item What is the encoder $q_\phi(z\mid x)$, and how does it differ from $p(z\mid x)$?
+\end{enumerate}
+
+\subsection{What the question is asking}
+
+This is the lecture's one running example. A VAE has a prior (how hidden codes are picked), a decoder (how a code becomes data) and an encoder (a guess of the code from data). On this tiny model every exact answer can be computed, so later questions can check the VAE's approximations against the truth. In image terms, $z$ is a hidden ``brightness setting'' and $x$ is the brightness of the image the decoder actually makes, which is the setting plus a little noise.
+
+\subsection{Concepts you need}
+
+\textbf{Already explained:} latent variable story, joint, marginal and posterior (\hyperref[c7-1]{Concepts 7.1} and \hyperref[c7-2]{7.2}), why the integral is hard (\hyperref[c7-3]{Concept 7.3}), Gaussian density (\hyperref[c6-2]{Concept 6.2}).
+
+\subsubsection{Concept 15.1: The three distributions of a VAE}\label{c15-1}
+
+\begin{itemize}[nosep]
+  \item \textbf{Prior} $p(z)$: how hidden codes are picked before seeing anything. Usually $\mathcal{N}(0,I)$.
+  \item \textbf{Decoder} $p_\theta(x\mid z)$: how a code is turned into data. The joint is $p(x,z)=p(x\mid z)\,p(z)$, the generative story read left to right.
+  \item \textbf{True posterior} $p(z\mid x)=p(x,z)/p(x)$: which codes explain a given $x$. It needs the marginal $p(x)$, the hard integral.
+  \item \textbf{Encoder} $q_\phi(z\mid x)=\mathcal{N}\big(\mu_\phi(x),\sigma^2_\phi(x)\big)$: a family \emph{we choose}, computed by a network with knobs $\phi$, to approximate the true posterior. It equals the true posterior only if training makes it so.
+\end{itemize}
+Two jobs, as in Week 1. To \emph{score} a landing you need $\log p(x)$. To \emph{draw} a new landing, sample a pull from the prior and then a landing from the decoder. The encoder is not used for a new landing. It is used only when a landing is already in your hand and you want a guess at the pull.
+
+\subsubsection{Concept 15.2: Adding independent Gaussians}\label{c15-2}
+
+Write the decoder as $x=z+\varepsilon$ with $\varepsilon\sim\mathcal{N}(0,1)$ independent of $z$. Then
+\[
+\mathbb{E}[x]=\mathbb{E}[z]+\mathbb{E}[\varepsilon],\qquad \mathrm{Var}(x)=\mathrm{Var}(z)+\mathrm{Var}(\varepsilon).
+\]
+\begin{itemize}[nosep]
+  \item \textbf{What it says:} for independent pieces, the means add and the variances (spreads) add. The sum of two independent Gaussians is again Gaussian.
+  \item \textbf{When it holds:} the variance rule needs independence. If the two pieces moved together, an extra term would appear.
+\end{itemize}
+
+\subsubsection{Concept 15.3: Finding the posterior by completing the square}\label{c15-3}
+
+By Bayes' rule, $p(z\mid x)\propto p(x\mid z)\,p(z)$. The sign $\propto$ means ``proportional to'': since $x$ is fixed, $p(x)$ is just a constant as $z$ varies, so it only rescales and can be dropped while finding the \emph{shape}.
+\[
+p(z\mid x)\propto\exp\!\Big(-\frac{(x-z)^2}{2}\Big)\exp\!\Big(-\frac{z^2}{2}\Big)
+=\exp\!\Big(-\big(z-\tfrac{x}{2}\big)^2-\tfrac{x^2}{4}\Big)
+\propto\exp\!\Big(-\big(z-\tfrac{x}{2}\big)^2\Big)
+\]
+\begin{itemize}[nosep]
+  \item \textbf{Middle step:} expand the exponent, then complete the square:
+  \[
+  -\frac{(x-z)^2}{2}-\frac{z^2}{2}=-z^2+xz-\frac{x^2}{2},\qquad -z^2+xz=-\Big(z-\frac x2\Big)^2+\frac{x^2}{4}.
+  \]
+  The leftover $-\frac{x^2}{4}$ has no $z$, so it is a constant.
+  \item \textbf{Matching:} a Gaussian has shape $\exp\!\big(-\frac{(z-\mu)^2}{2\sigma^2}\big)$. Matching gives $\mu=x/2$ and $2\sigma^2=1$, so $\sigma^2=1/2$.
+  \item \textbf{Result:}
+  \[
+  p(z\mid x)=\mathcal{N}\!\Big(\frac x2,\ \frac12\Big).
+  \]
+\end{itemize}
+
+\subsubsection{Concept 15.4: Why a neural decoder destroys the closed forms}\label{c15-4}
+
+With $p(x\mid z)=\mathcal{N}(f_\theta(z),1)$, the exponent contains $(x-f_\theta(z))^2$, which is no longer a simple quadratic in $z$. You cannot complete the square, the integral for $p(x)$ has no closed form, and the posterior is no longer a Gaussian you can write down. The rest of the lecture (the ELBO) is what we do instead.
+
+\subsection{Solution}
+
+\textbf{(a)} With $x=z+\varepsilon$: mean $0+0=0$, variance $1+1=2$, and a sum of independent Gaussians is Gaussian. So $p(x)=\mathcal{N}(0,2)$. Landings spread more than pulls, because two sources of randomness are stacked.
+\[
+\tfrac12\log(4\pi)=\tfrac12\log(2\pi)+\tfrac12\log2\approx0.919+0.347=1.266,
+\]
+\[
+\log p(3)=-1.266-\frac{9}{4}=-1.266-2.25=-3.516 .
+\]
+(The formula is the log of the $\mathcal{N}(0,2)$ density, $\frac{1}{\sqrt{4\pi}}e^{-x^2/4}$.)
+
+\textbf{(b)} From \hyperref[c15-3]{Concept 15.3} with $x=3$:
+\[
+p(z\mid x=3)=\mathcal{N}(1.5,\ 0.5).
+\]
+The prior pulls the guess toward 0. The landing pulls it toward 3. Both have the same strength (variance 1 each), so the best guess lands halfway, at 1.5. The uncertainty shrinks from 1 to $\frac12$ because two sources of information are now combined.
+
+\textbf{(c)} From the prior $p(z)=\mathcal{N}(0,1)$, then $x\sim\mathcal{N}(z,1)$. A new landing needs a fresh pull. Sampling from $q_\phi(z\mid x=3)$ would give pulls that explain the old landing, so the new landings would cluster near 3: a variation of yesterday's landing, not a new one. The encoder is used only when you already have an $x$ and want to encode it (in training, or for editing).
+
+\textbf{(d)} Both closed forms are lost: the marginal $p(x)$ (the integral no longer finishes) and the posterior $p(z\mid x)$ (no longer a Gaussian we can write).
+
+\textbf{(e)} The encoder is a Gaussian $\mathcal{N}(\mu_\phi(x),\sigma^2_\phi(x))$ whose mean and variance come from a network that reads $x$. It is our approximation. The true posterior $p(z\mid x)$ is whatever Bayes' rule says, and with a neural decoder it can have any shape. They are equal only if training (and the chosen family) allows it. On this toy model they can match exactly, $q=\mathcal{N}(1.5,0.5)$.
+
+% ============================================================
+\newpage
+\section{Question 16: Jensen's inequality, the ELBO and its gap}
+
+\subsection{Question}
+
+\begin{enumerate}[label=(\alph*)]
+  \item Two equally likely numbers are 1 and 9. Compare the log of their average with the average of their logs ($\log5\approx1.609$, $\log9\approx2.197$). When would the two be equal?
+  \item Starting from $\log p(x)=\log\int p(x,z)\,dz$, insert any $q(z\mid x)>0$ and apply Jensen's inequality to get a lower bound. Split it into a reconstruction term and $\mathrm{KL}(q(z\mid x)\,\|\,p(z))$.
+  \item Starting instead from $\mathrm{KL}\big(q(z\mid x)\,\|\,p(z\mid x)\big)$ and using Bayes' rule, show that
+  \[
+  \log p(x)=\text{ELBO}+\mathrm{KL}\big(q(z\mid x)\,\|\,p(z\mid x)\big).
+  \]
+  When is the bound tight?
+  \item True or false, with a reason:
+  \begin{enumerate}[label=(\roman*)]
+    \item The gap between $\log p(x)$ and the ELBO is $\mathrm{KL}(q\|p(z))$.
+    \item Raising the ELBO always raises $\log p(x)$.
+    \item In code we minimize $-\text{ELBO}$, which is ``reconstruction loss plus KL loss''.
+    \item An encoder equal to the prior has zero gap.
+  \end{enumerate}
+\end{enumerate}
+
+\subsection{What the question is asking}
+
+We cannot compute $\log p(x)$ when the decoder is a neural network. The VAE computes a number that is guaranteed to be at most $\log p(x)$, the ELBO (evidence lower bound), and maximizes that instead. This question asks you to derive the bound in two ways, name its parts, and pin down exactly how far below $\log p(x)$ it sits.
+
+\subsection{Concepts you need}
+
+\textbf{Already explained:} expectation (\hyperref[c5-1]{Concept 5.1}), KL divergence (\hyperref[c5-2]{Concept 5.2}), joint, marginal and posterior (\hyperref[c7-2]{Concept 7.2}), complete versus incomplete data (\hyperref[c7-5]{Concept 7.5}).
+
+\subsubsection{Concept 16.1: Concave functions and Jensen's inequality}\label{c16-1}
+
+A function is \emph{concave} if its curve bends downward, like $\log$ (its second derivative $-1/u^2$ is negative).
+\[
+\log\mathbb{E}[u]\ \ge\ \mathbb{E}[\log u]
+\]
+\begin{itemize}[nosep]
+  \item \textbf{Symbols:} $u$ is any positive random quantity and $\mathbb{E}$ is its average.
+  \item \textbf{What it says:} for a downward-bending curve, the log of an average is at least the average of the logs. Picture the chord between two points of the curve: it lies below the curve.
+  \item \textbf{When equality holds:} only when $u$ does not vary, so every value is the same.
+\end{itemize}
+
+\subsubsection{Concept 16.2: Inserting $q$ and the ELBO}\label{c16-2}
+
+Multiply and divide by $q(z\mid x)$ inside the integral (this changes nothing), then read the integral as an average under $q$:
+\[
+\log p(x)=\log\int q(z\mid x)\,\frac{p(x,z)}{q(z\mid x)}\,dz=\log\mathbb{E}_q\!\left[\frac{p(x,z)}{q(z\mid x)}\right]\ \ge\ \mathbb{E}_q\!\left[\log\frac{p(x,z)}{q(z\mid x)}\right]=\text{ELBO}.
+\]
+Split the joint as $p(x,z)=p(x\mid z)\,p(z)$:
+\[
+\text{ELBO}=\underbrace{\mathbb{E}_{q(z\mid x)}[\log p(x\mid z)]}_{\text{reconstruction}}-\underbrace{\mathrm{KL}\big(q(z\mid x)\,\|\,p(z)\big)}_{\text{stay near the prior}}
+\]
+\begin{itemize}[nosep]
+  \item \textbf{Reconstruction:} encode $x$ to codes, decode them, and ask how likely the original $x$ is. It is high when the decoder can rebuild the input from the code.
+  \item \textbf{KL to the prior:} a penalty for encoder outputs that drift far from $\mathcal{N}(0,1)$. It keeps the codes in the region we later sample from.
+  \item \textbf{Why this helps:} the left side has a log outside an integral we cannot do. The right side is an average of simple terms, which we can estimate by drawing a few $z$ from $q$.
+  \item \textbf{In code:} minimize $-\text{ELBO}=$ reconstruction loss $+$ KL loss.
+\end{itemize}
+
+\subsubsection{Concept 16.3: The gap is a KL to the true posterior}\label{c16-3}
+
+\[
+\log p(x)=\text{ELBO}+\mathrm{KL}\big(q(z\mid x)\,\|\,p(z\mid x)\big)
+\]
+\begin{itemize}[nosep]
+  \item \textbf{What it says:} the ELBO falls short of $\log p(x)$ by exactly the KL between the encoder and the \emph{true posterior}. It is \emph{not} the KL to the prior; that one stays inside the ELBO.
+  \item \textbf{When it holds:} always, for any $q>0$.
+  \item \textbf{Special values:} KL $\ge0$, so ELBO $\le\log p(x)$. The bound is tight (gap 0) exactly when $q(z\mid x)=p(z\mid x)$. In Jensen terms, the ratio $p(x,z)/q(z\mid x)$ is then the same for every $z$.
+  \item \textbf{What you may claim:} maximizing the ELBO maximizes $\log p(x)$ only if the encoder family can match the true posterior. Otherwise you optimize a lower bound, and the missing piece is that KL.
+\end{itemize}
+
+\subsection{Solution}
+
+\textbf{(a)}
+\[
+\log\Big(\frac{1+9}{2}\Big)=\log5\approx1.609,\qquad\frac{\log1+\log9}{2}=\frac{0+2.197}{2}\approx1.099 .
+\]
+The log of the average is bigger, by about 0.511, as Jensen says. They would be equal only if the two numbers were the same.
+
+\textbf{(b)} See the chain in \hyperref[c16-2]{Concept 16.2}. Step by step: (1) multiply and divide by $q$; (2) recognize an average under $q$; (3) Jensen moves the log inside and turns ``$=$'' into ``$\ge$''; (4) expand
+\[
+\log\frac{p(x\mid z)\,p(z)}{q(z\mid x)}=\log p(x\mid z)-\log\frac{q(z\mid x)}{p(z)}
+\]
+and average. The second average is by definition $\mathrm{KL}(q\|p(z))$. Result:
+\[
+\text{ELBO}=\mathbb{E}_q[\log p(x\mid z)]-\mathrm{KL}\big(q(z\mid x)\,\|\,p(z)\big).
+\]
+
+\textbf{(c)} Write the KL out and use Bayes' rule, $p(z\mid x)=p(x,z)/p(x)$:
+\[
+\mathrm{KL}\big(q\,\|\,p(z\mid x)\big)=\mathbb{E}_q\!\left[\log\frac{q(z\mid x)}{p(z\mid x)}\right]
+=\mathbb{E}_q\!\left[\log\frac{q(z\mid x)\,p(x)}{p(x,z)}\right]
+=\log p(x)-\mathbb{E}_q\!\left[\log\frac{p(x,z)}{q(z\mid x)}\right].
+\]
+The last step pulls $\log p(x)$ out of the average. It has no $z$ in it, and $q$ adds to 1. The remaining average is the ELBO, so
+\[
+\mathrm{KL}\big(q\,\|\,p(z\mid x)\big)=\log p(x)-\text{ELBO}\quad\Longrightarrow\quad\log p(x)=\text{ELBO}+\mathrm{KL}\big(q\,\|\,p(z\mid x)\big).
+\]
+Tight exactly when $q(z\mid x)=p(z\mid x)$.
+
+\textbf{(d)}
+\begin{enumerate}[label=(\roman*),nosep]
+  \item \textbf{False.} The gap is the KL to the \emph{posterior}. The KL to the prior is a cost inside the ELBO.
+  \item \textbf{False.} A higher ELBO can come from shrinking the gap (a better encoder) while $\log p(x)$ stays the same.
+  \item \textbf{True.} $-\text{ELBO}=-\mathbb{E}_q[\log p(x\mid z)]+\mathrm{KL}(q\|p(z))$.
+  \item \textbf{False.} An encoder equal to the prior has zero KL to the \emph{prior}, but its gap is the KL to the posterior, which is usually large (Question 17 shows 2.40).
+\end{enumerate}
+
+% ============================================================
+\newpage
+\section{Question 17: Three encoders, three ELBOs}
+
+\subsection{Question}
+
+Same pen story, $x=3$, with $\log p(3)\approx-3.516$ and true posterior $\mathcal{N}(1.5,0.5)$ (Question 15). Three encoders are tried:
+\[
+q_A=\mathcal{N}(0,1)\ (\text{ignores }x),\qquad q_B=\mathcal{N}(1,1)\ (\text{halfway}),\qquad q_C=\mathcal{N}(1.5,0.5)\ (\text{matched}).
+\]
+Use
+\[
+\mathbb{E}_q[\log p(x\mid z)]=-0.919-\tfrac12\,\mathbb{E}_q[(x-z)^2],\qquad \mathbb{E}_q[(x-z)^2]=\sigma^2+(x-\mu)^2,
+\]
+\[
+\mathrm{KL}\big(\mathcal{N}(\mu,\sigma^2)\,\|\,\mathcal{N}(0,1)\big)=\tfrac12\big(\mu^2+\sigma^2-\log\sigma^2-1\big).
+\]
+\begin{enumerate}[label=(\alph*)]
+  \item Explain where the formula for $\mathbb{E}_q[(x-z)^2]$ comes from, and derive the KL formula.
+  \item For each encoder, compute the reconstruction term, $\mathrm{KL}(q\|p(z))$, the ELBO, and the gap $\log p(3)-\text{ELBO}$.
+  \item For $q_A$ and $q_B$, check that the gap equals $\mathrm{KL}(q\,\|\,p(z\mid x))$ using
+  \[
+  \mathrm{KL}\big(\mathcal{N}(\mu_q,\sigma_q^2)\,\|\,\mathcal{N}(\mu_p,\sigma_p^2)\big)=\tfrac12\Big[\log\frac{\sigma_p^2}{\sigma_q^2}+\frac{\sigma_q^2+(\mu_q-\mu_p)^2}{\sigma_p^2}-1\Big].
+  \]
+  \item Rank the encoders. Why does $q_A$ lose even though it pays nothing to the prior? What is the lesson for reporting results on real VAEs?
+\end{enumerate}
+
+\subsection{What the question is asking}
+
+Plug three different encoders into the same ELBO and compare them with the true $\log p(3)$. You will see the ELBO's two parts pull against each other, and the gap shrink to zero exactly when the encoder matches the true posterior.
+
+\subsection{Concepts you need}
+
+\textbf{Already explained:} ELBO and gap (\hyperref[c16-2]{Concepts 16.2} and \hyperref[c16-3]{16.3}), KL definition (\hyperref[c5-2]{Concept 5.2}), the pen story (\hyperref[c15-1]{Concept 15.1}).
+
+\subsubsection{Concept 17.1: Average squared distance under a Gaussian}\label{c17-1}
+
+\[
+\mathbb{E}_q[(x-z)^2]=\sigma^2+(x-\mu)^2\qquad\text{for }z\sim\mathcal{N}(\mu,\sigma^2)
+\]
+\begin{itemize}[nosep]
+  \item \textbf{Where it comes from:} write $x-z=(x-\mu)-(z-\mu)$ and square. The cross term averages to 0 because $z-\mu$ averages to 0. $(z-\mu)^2$ averages to $\sigma^2$.
+  \item \textbf{What it says:} the average squared miss between the data and a random code has two parts: the code's spread (being unsure) plus the distance from the data to the code's centre (being off-centre). Both cost you.
+\end{itemize}
+
+\subsubsection{Concept 17.2: The KL from a Gaussian to the standard normal}\label{c17-2}
+
+\[
+\mathrm{KL}\big(\mathcal{N}(\mu,\sigma^2)\,\|\,\mathcal{N}(0,1)\big)=\tfrac12\big(\mu^2+\sigma^2-\log\sigma^2-1\big)
+\]
+\begin{itemize}[nosep]
+  \item \textbf{Symbols:} $\mu$ and $\sigma^2$ are the encoder's mean and variance for one latent dimension.
+  \item \textbf{What it says:} the encoder pays for moving its centre away from 0 (the $\mu^2$ term) and for a spread different from 1 (the $\sigma^2-\log\sigma^2-1$ part, which is 0 at $\sigma^2=1$ and positive otherwise).
+  \item \textbf{Special values:} at $\mu=0,\sigma^2=1$ every term cancels and KL $=0$. As $\sigma^2\to0$, $-\log\sigma^2\to+\infty$: an encoder that is absolutely certain pays without limit.
+  \item \textbf{Many dimensions:} for a diagonal Gaussian in $d$ dimensions, add one such term per dimension:
+  \[
+  \tfrac12\sum_{j=1}^{d}\big(\mu_j^2+\sigma_j^2-\log\sigma_j^2-1\big).
+  \]
+\end{itemize}
+
+\subsection{Solution}
+
+\textbf{(a)} The first formula is \hyperref[c17-1]{Concept 17.1}. For the KL, write the two log-densities:
+\[
+\log q(z)=-\tfrac12\log(2\pi\sigma^2)-\frac{(z-\mu)^2}{2\sigma^2},\qquad \log p(z)=-\tfrac12\log(2\pi)-\frac{z^2}{2}.
+\]
+Subtract (the $2\pi$ parts cancel):
+\[
+\log\frac{q}{p}=-\tfrac12\log\sigma^2-\frac{(z-\mu)^2}{2\sigma^2}+\frac{z^2}{2}.
+\]
+Average under $q$, using $\mathbb{E}[(z-\mu)^2]=\sigma^2$ and $\mathbb{E}[z^2]=\sigma^2+\mu^2$:
+\[
+\mathrm{KL}=-\tfrac12\log\sigma^2-\tfrac12+\frac{\sigma^2+\mu^2}{2}=\tfrac12\big(\mu^2+\sigma^2-\log\sigma^2-1\big).
+\]
+
+\textbf{(b)}
+\emph{$q_A=\mathcal{N}(0,1)$:} $\mathbb{E}[(3-z)^2]=1+9=10$, so reconstruction $=-0.919-5=-5.919$. KL $=\tfrac12(0+1-0-1)=0$. ELBO $=-5.919$. Gap $=-3.516-(-5.919)=2.403$.
+
+\emph{$q_B=\mathcal{N}(1,1)$:} $\mathbb{E}[(3-z)^2]=1+4=5$, so reconstruction $=-0.919-2.5=-3.419$. KL $=\tfrac12(1+1-0-1)=0.5$. ELBO $=-3.919$. Gap $=0.403$.
+
+\emph{$q_C=\mathcal{N}(1.5,0.5)$:} $\mathbb{E}[(3-z)^2]=0.5+2.25=2.75$, so reconstruction $=-0.919-1.375=-2.294$. KL $=\tfrac12(2.25+0.5+0.693-1)=\tfrac12(2.443)\approx1.222$. ELBO $\approx-3.516$. Gap $\approx0$.
+
+\begin{center}
+\begin{tabular}{@{}lccc@{}}
+\toprule
+ & $q_A=\mathcal{N}(0,1)$ & $q_B=\mathcal{N}(1,1)$ & $q_C=\mathcal{N}(1.5,0.5)$ \\
+\midrule
+Reconstruction & $-5.919$ & $-3.419$ & $-2.294$ \\
+$\mathrm{KL}(q\|p(z))$ & 0 & 0.500 & 1.222 \\
+ELBO & $-5.919$ & $-3.919$ & $-3.516$ \\
+$\log p(3)$ & $-3.516$ & $-3.516$ & $-3.516$ \\
+Gap & 2.403 & 0.403 & 0 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\textbf{(c)} The true posterior has $\mu_p=1.5$ and $\sigma_p^2=0.5$, and $\log\frac{0.5}{1}=-0.693$.
+\[
+q_A:\ \tfrac12\Big[-0.693+\frac{1+(0-1.5)^2}{0.5}-1\Big]=\tfrac12[-0.693+6.5-1]=\tfrac12(4.807)\approx2.403 .
+\]
+\[
+q_B:\ \tfrac12\Big[-0.693+\frac{1+(1-1.5)^2}{0.5}-1\Big]=\tfrac12[-0.693+2.5-1]=\tfrac12(0.807)\approx0.403 .
+\]
+Both match the gaps from (b). And $q_C$ \emph{is} the posterior, so its KL to it is 0, matching its zero gap.
+
+\textbf{(d)} Ranking by ELBO: $q_C$ (best, exact) $>q_B>q_A$. $q_A$ pays nothing to the prior, but its codes cluster around 0 while the data is at 3, so its reconstruction is terrible. The matched encoder pays 1.22 to the prior but gains 3.6 in reconstruction. Note that $\log p(3)$ is identical in all three columns: it belongs to the model, not the encoder. Only the ELBO moves. Lesson: on real images the gap cannot be computed, so an ELBO must be reported as a lower bound. Reporting $q_A$'s $-5.919$ as if it were $\log p(x)$ would understate the truth ($-3.516$) by 2.4 nats.
+
+% ============================================================
+\newpage
+\section{Question 18: KL derivatives, reparameterization and one gradient step}
+
+\subsection{Question}
+
+Same pen story with $x=3$. On one training step the encoder outputs $\mu=1$, $\sigma=0.5$, and the noise drawn is $\varepsilon=-2$.
+\begin{enumerate}[label=(\alph*)]
+  \item Derive $\partial\mathrm{KL}/\partial\mu$ and $\partial\mathrm{KL}/\partial\sigma$ for the KL to $\mathcal{N}(0,1)$. Evaluate them here. Which way does each push?
+  \item The network actually outputs $\ell=\log\sigma^2$. Why? Show $\partial\mathrm{KL}/\partial\ell=\tfrac12(\sigma^2-1)$ and evaluate it.
+  \item Why can you not backpropagate through ``draw $z\sim q_\phi(z\mid x)$''? Write the reparameterized $z$ and compute it here, with $\partial z/\partial\mu$ and $\partial z/\partial\sigma$.
+  \item Show $\partial\log p(x\mid z)/\partial z=x-z$ for $p(x\mid z)=\mathcal{N}(z,1)$. Compute the reconstruction slopes with respect to $\mu$ and $\sigma$, and the slopes of the loss $L=-\log p(x\mid z)+\mathrm{KL}$. After one gradient-descent step with learning rate 0.1, what are $\mu$ and $\sigma$?
+  \item The slides say the \emph{average} reconstruction slope for $\sigma$ is $-\sigma$. Using it, find the $\sigma$ where the average slope of the loss is zero. What do you notice?
+  \item If $\varepsilon=0$ were used on every step, what would happen?
+  \item If the decoder mean is a network $f_\theta(z)$, the slope becomes $(x-f_\theta(z))\,f_\theta'(z)$. Evaluate it for $f_\theta(z)=2z+1$ at $z=0$. Why do Gaussian decoders often give blurry images?
+  \item For a 2-D latent with $\mu=(1,0)$ and $\sigma^2=(0.5,1)$, compute the KL to $\mathcal{N}(0,I)$.
+\end{enumerate}
+
+\subsection{What the question is asking}
+
+Training a VAE needs the slopes (derivatives) of the loss with respect to what the encoder outputs. The KL part has a simple formula. The reconstruction part involves a random draw, so we first rewrite the draw so a slope exists. The question asks you to compute every slope on one concrete step, take the step, and see why one noise draw is a noisy hint.
+
+\subsection{Concepts you need}
+
+\textbf{Already explained:} the Gaussian KL formula (\hyperref[c17-2]{Concept 17.2}), the ELBO and loss (\hyperref[c16-2]{Concept 16.2}).
+
+\subsubsection{Concept 18.1: Slopes of the KL}\label{c18-1}
+
+\[
+\frac{\partial\mathrm{KL}}{\partial\mu}=\mu,\qquad\frac{\partial\mathrm{KL}}{\partial\sigma}=\tfrac12\Big(2\sigma-\frac{2}{\sigma}\Big)=\sigma-\frac1\sigma
+\]
+\begin{itemize}[nosep]
+  \item \textbf{Where they come from:} only $\mu^2$ contains $\mu$, giving $\tfrac12\cdot2\mu$. For $\sigma$, $\sigma^2$ has slope $2\sigma$, and $-\log\sigma^2=-2\log\sigma$ has slope $-2/\sigma$.
+  \item \textbf{What they say:} minimizing the loss always pulls the code centre toward 0, harder the further away it is. The $\sigma$ slope is 0 at $\sigma=1$, negative when $\sigma<1$ (so minimizing pushes $\sigma$ up), and positive when $\sigma>1$ (pushes it down).
+\end{itemize}
+
+\subsubsection{Concept 18.2: Log-variance outputs}\label{c18-2}
+
+A network's raw output can be any number, including negative ones, but a variance must be positive. So the network outputs $\ell=\log\sigma^2$ and we set $\sigma^2=e^{\ell}>0$. Then $\sigma=\exp(\ell/2)$, and the KL becomes
+\[
+\mathrm{KL}=\tfrac12\big(\mu^2+e^{\ell}-\ell-1\big),\qquad\frac{\partial\mathrm{KL}}{\partial\ell}=\tfrac12\big(e^{\ell}-1\big)=\tfrac12(\sigma^2-1).
+\]
+It is zero at $\sigma^2=1$, the same resting point as before.
+
+\subsubsection{Concept 18.3: Slope of the reconstruction}\label{c18-3}
+
+\[
+\log p(x\mid z)=-\tfrac12\log(2\pi)-\tfrac12(x-z)^2,\qquad\frac{\partial}{\partial z}\log p(x\mid z)=x-z
+\]
+\begin{itemize}[nosep]
+  \item \textbf{What it says:} if the data is to the right of the code ($x>z$) the slope is positive: move the code toward the data.
+  \item \textbf{Neural decoder:} with mean $f_\theta(z)$ the chain rule gives $(x-f_\theta(z))\,f'_\theta(z)$. Squared-error loss is this with the constants dropped.
+  \item \textbf{Blur:} a Gaussian decoder's best output for a code is the \emph{average} of all images that code could stand for. If one code could mean ``a 1'' or ``a 7'', the average is a grey smudge. This is why Gaussian-decoder VAEs look blurry even when the bound is tight.
+\end{itemize}
+
+\subsubsection{Concept 18.4: The reparameterization trick}\label{c18-4}
+
+The reconstruction term needs $z\sim q_\phi(z\mid x)$. A sampler has no useful slope: a tiny change in $\mu$ changes \emph{which} random value you would have drawn, and that jump is not a slope. So we move the randomness into noise that does not depend on $\phi$:
+\[
+\varepsilon\sim\mathcal{N}(0,1),\qquad z=\mu_\phi(x)+\sigma_\phi(x)\,\varepsilon .
+\]
+\begin{itemize}[nosep]
+  \item \textbf{What it says:} draw plain noise first, then build $z$ with an ordinary formula. $z$ still has the same distribution $\mathcal{N}(\mu,\sigma^2)$, since its mean is $\mu$ and its variance is $\sigma^2$. Only the way of drawing it has changed.
+  \item \textbf{Slopes:}
+  \[
+  \frac{\partial z}{\partial\mu}=1,\qquad\frac{\partial z}{\partial\sigma}=\varepsilon .
+  \]
+  \item \textbf{Chain rule:} $\dfrac{\partial\log p}{\partial\mu}=(x-z)\cdot1$ and $\dfrac{\partial\log p}{\partial\sigma}=(x-z)\cdot\varepsilon$.
+\end{itemize}
+
+\subsubsection{Concept 18.5: One noise draw is a noisy hint}\label{c18-5}
+
+Normally one $\varepsilon$ is drawn per data point. That single-sample slope is an honest but noisy estimate. Its \emph{average} over all $\varepsilon$ is what the ELBO really asks for. For the $\sigma$ slope in this model:
+\[
+\mathbb{E}\big[(x-\mu-\sigma\varepsilon)\,\varepsilon\big]=-\sigma .
+\]
+(Here $\mathbb{E}[\varepsilon]=0$ and $\mathbb{E}[\varepsilon^2]=1$.) So on average, widening the spread hurts reconstruction, even if one draw says otherwise. Many training steps average out the noise.
+
+\textbf{A training step:} (1) encode $x$ to $\mu$ and $\ell$, set $\sigma=e^{\ell/2}$; (2) draw $\varepsilon$, set $z=\mu+\sigma\varepsilon$; (3) add $-\log p(x\mid z)$ to the closed-form KL (this is $-\text{ELBO}$ for one sample); (4) backpropagate.
+
+\subsection{Solution}
+
+\textbf{(a)} From \hyperref[c18-1]{Concept 18.1}: $\partial\mathrm{KL}/\partial\mu=\mu=1$, which pulls $\mu$ down toward 0. And $\partial\mathrm{KL}/\partial\sigma=0.5-1/0.5=0.5-2=-1.5$. It is negative, so minimizing pushes $\sigma$ \emph{up} toward 1.
+
+\textbf{(b)} Because $\sigma^2=e^\ell$ is positive for any raw output $\ell$. Here $\ell=\log0.25\approx-1.386$ and
+\[
+\frac{\partial\mathrm{KL}}{\partial\ell}=\tfrac12(0.25-1)=-0.375 .
+\]
+Check by the chain rule: $\sigma=e^{\ell/2}$ gives $\partial\sigma/\partial\ell=\sigma/2=0.25$, and $-1.5\times0.25=-0.375$.
+
+\textbf{(c)} A sampling step has no slope with respect to $\mu$ or $\sigma$. Nudging them changes which random value comes out, not smoothly how much. Reparameterize:
+\[
+z=\mu+\sigma\varepsilon=1+0.5\times(-2)=0,\qquad\frac{\partial z}{\partial\mu}=1,\qquad\frac{\partial z}{\partial\sigma}=\varepsilon=-2 .
+\]
+
+\textbf{(d)} The constant $-\tfrac12\log(2\pi)$ has slope 0. The slope of $(x-z)^2$ is $2(x-z)(-1)$, so
+\[
+\frac{\partial}{\partial z}\Big[-\tfrac12(x-z)^2\Big]=-\tfrac12\cdot2(x-z)(-1)=x-z .
+\]
+Here $x-z=3-0=3$. Reconstruction slopes:
+\[
+\frac{\partial\log p}{\partial\mu}=3\times1=3,\qquad\frac{\partial\log p}{\partial\sigma}=3\times(-2)=-6 .
+\]
+Loss slopes ($L=-\log p+\mathrm{KL}$):
+\[
+\frac{\partial L}{\partial\mu}=-3+1=-2,\qquad\frac{\partial L}{\partial\sigma}=+6+(-1.5)=4.5 .
+\]
+Gradient descent subtracts $0.1\times$ slope:
+\[
+\mu\leftarrow1-0.1(-2)=1.2,\qquad\sigma\leftarrow0.5-0.1(4.5)=0.05 .
+\]
+$\mu$ moves toward the true posterior mean 1.5, which is good. But $\sigma$ collapses to 0.05, far below the true posterior spread ($\sqrt{0.5}\approx0.71$). This one draw, $\varepsilon=-2$, happened to land the code far from the data, so it told $\sigma$ to shrink hard. That is the noise of a single-sample estimate.
+
+\textbf{(e)} The average reconstruction slope is $-\sigma$, so the average loss slope is
+\[
+\frac{\partial L}{\partial\sigma}=-(-\sigma)+\Big(\sigma-\frac1\sigma\Big)=2\sigma-\frac1\sigma .
+\]
+At $\sigma=0.5$ this is $1-2=-1$: on average, the step should \emph{increase} $\sigma$, the opposite of the single draw. Setting it to zero: $2\sigma=1/\sigma$, so $\sigma^2=\tfrac12$. That is exactly the true posterior variance from Question 15. On average, the ELBO's slopes drive the encoder toward the true posterior.
+
+\textbf{(f)} Then $\partial z/\partial\sigma=\varepsilon=0$, so $\sigma$ gets no reconstruction signal at all, and $z=\mu$ every time. $\mu$ still learns. $\sigma$ only feels the KL, which pushes it to 1. We are no longer training the ELBO: the model becomes a plain autoencoder with a decorative $\sigma$ and never learns how uncertain its codes should be.
+
+\textbf{(g)} $f_\theta(0)=1$ and $f'_\theta(z)=2$, so the slope is $(3-1)\times2=4$. Blur: for each code, a Gaussian decoder's best guess is the average of all images that code could mean. When several sharp images share a code, the average is smeared.
+
+\textbf{(h)} Add one term per dimension:
+\[
+\tfrac12(1+0.5+0.693-1)+\tfrac12(0+1-0-1)=\tfrac12(1.193)+0\approx0.597 .
+\]
+The second dimension sits exactly at the prior, so it costs nothing.
+
+% ============================================================
+\newpage
+\section{Question 19: VAEs in practice and the variants}
+
+\subsection{Question}
+
+\begin{enumerate}[label=(\alph*)]
+  \item What does the KL-to-prior term buy you? What would go wrong without it when you draw $z\sim\mathcal{N}(0,I)$ and decode?
+  \item Two face images encode to $z_1=(1,-2)$ and $z_2=(3,2)$. Compute the interpolation point $z(t)=(1-t)z_1+tz_2$ at $t=0.25$. A smooth morph appears. Does that prove the first coordinate means ``smile''?
+  \item A VAE with a PixelCNN decoder reports $\mathrm{KL}(q\|p(z))\approx0$ for every input. What has happened, and why? Name three responses. With free bits at $\lambda=0.5$ nats per dimension, what KL penalty is charged when the two dimensions have KLs 0.1 and 0.8, given $L'_R=\sum_i\max(\lambda,\mathrm{KL}_i)$?
+  \item A $\beta$-VAE uses $\beta=4$. For one image the reconstruction term is $-100$ and the KL is 5. Compute the standard ELBO and the $\beta$-VAE objective. What does $\beta>1$ trade?
+  \item In a conditional VAE with label $y$, what does the ELBO bound? How do you generate a new image of class $y$?
+  \item A VQ-VAE codebook has $e_1=(0,0)$, $e_2=(1,1)$, $e_3=(2,0)$. The encoder outputs $z_e=(1.4,0.3)$. Which code is chosen? How does the gradient get past the lookup? What is the commitment loss for? How do you sample a new image?
+  \item Compare a VAE with an AR model on: likelihood, sampling, latent code, sharpness.
+\end{enumerate}
+
+\subsection{What the question is asking}
+
+This question covers the ``after the story'' part of Lecture 3: why the prior term makes generation possible, what can go wrong in training (posterior collapse), and three common variants ($\beta$-VAE, conditional VAE, VQ-VAE).
+
+\subsection{Concepts you need}
+
+\textbf{Already explained:} ELBO terms (\hyperref[c16-2]{Concept 16.2}), generating from the prior (\hyperref[c15-1]{Concept 15.1}), AR models (\hyperref[c9-2]{Concept 9.2}).
+
+\subsubsection{Concept 19.1: What the prior KL buys}\label{c19-1}
+
+Without $\mathrm{KL}(q\|p(z))$, the decoder can use a private corner of $z$-space for each training image. Nearby codes need not decode to similar images, and a fresh draw from $\mathcal{N}(0,I)$ can land where the decoder was never trained. The KL makes every $q(z\mid x)$ overlap with the prior, which is why ``draw $z$ from the prior and decode'' gives sensible images.
+
+\textbf{Interpolation:}
+\[
+z(t)=(1-t)\,z_1+t\,z_2,\qquad0\le t\le1
+\]
+At $t=0$ you get $z_1$ and at $t=1$ you get $z_2$. Decoding the points in between shows a morph. A smooth morph is evidence of usable geometry. It is not proof that a single coordinate means one human-readable thing.
+
+\subsubsection{Concept 19.2: Posterior collapse}\label{c19-2}
+
+The encoder's output becomes the prior for every input, $q_\phi(z\mid x)\approx p(z)$, so $\mathrm{KL}(q\|p(z))\to0$ and the code carries nothing.
+\begin{itemize}[nosep]
+  \item \textbf{Causes:} a decoder strong enough to explain $x$ without $z$ (for example a PixelCNN, which can predict each pixel from earlier pixels); an imbalance between reconstruction and KL; optimization that matches the prior too early.
+  \item \textbf{Responses:}
+  \begin{itemize}[nosep]
+    \item \emph{KL annealing:} start with a small KL weight $\beta(t)$ and raise it during training, $J=J_{\text{rec}}+\beta(t)\,J_{\text{KL}}$.
+    \item \emph{Free bits:} allow a small amount of KL per latent dimension for free before penalizing more.
+    \item \emph{A weaker decoder:} forces the model to use $z$.
+  \end{itemize}
+  None is guaranteed to work.
+\end{itemize}
+
+\subsubsection{Concept 19.3: $\beta$-VAE}\label{c19-3}
+
+\[
+\mathcal{L}_\beta=\mathbb{E}_q[\log p_\theta(x\mid z)]-\beta\,\mathrm{KL}\big(q_\phi(z\mid x)\,\|\,p(z)\big)
+\]
+With $\beta>1$, more of the objective is spent on matching the prior. Reconstructions get worse, and the latent coordinates often become more independent (more ``disentangled''). $\beta$ is a knob, not a guarantee of meaningful coordinates.
+
+\subsubsection{Concept 19.4: Conditional VAE}\label{c19-4}
+
+Pass a label $y$ (or condition $c$) into both the encoder and the decoder. The ELBO then bounds $\log p(x\mid y)$:
+\[
+\mathcal{L}_{\text{CVAE}}=\mathbb{E}_{q_\phi(z\mid x,y)}[\log p_\theta(x\mid z,y)]-\mathrm{KL}\big(q_\phi(z\mid x,y)\,\|\,p(z\mid y)\big).
+\]
+To generate class $y$: draw $z$ from the prior (the lecture uses $p(z)$; the hand notes allow a label-dependent prior $p(z\mid y)$) and decode $(z,y)$.
+
+\subsubsection{Concept 19.5: VQ-VAE}\label{c19-5}
+
+The continuous $z=\mu+\sigma\varepsilon$ is replaced by the nearest vector from a learned codebook $e_1,\dots,e_K$:
+\[
+z_q=e_k,\qquad k=\arg\min_j\|z_e-e_j\|^2
+\]
+\begin{itemize}[nosep]
+  \item \textbf{Straight-through gradient:} the lookup has zero slope almost everywhere, so the decoder's gradient is copied to the encoder as if the lookup were the identity.
+  \item \textbf{Commitment loss:} keeps the encoder's outputs close to the code they chose, so they do not wander.
+  \item \textbf{Sampling:} needs a second model, a prior over codebook indices, which is often an AR model from Week 2.
+\end{itemize}
+
+\subsubsection{Concept 19.6: VAE versus autoregressive}\label{c19-6}
+
+\begin{center}
+\begin{tabular}{@{}>{\raggedright\arraybackslash}p{0.2\textwidth}>{\raggedright\arraybackslash}p{0.36\textwidth}>{\raggedright\arraybackslash}p{0.36\textwidth}@{}}
+\toprule
+ & Autoregressive & VAE \\
+\midrule
+$\log p(x)$ & exact, by the chain rule & ELBO, gap $=\mathrm{KL}(q\|p(z\mid x))$ \\
+New sample & one coordinate at a time, $O(D)$ steps & one $z$ from the prior, one decode \\
+Code & none & $\mu,\sigma$ from the encoder \\
+Sharpness & sharp local detail & often blurry with a Gaussian decoder \\
+Main challenge & slow sequential generation & approximation gap, posterior collapse \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\subsection{Solution}
+
+\textbf{(a)} It keeps all encoder outputs overlapping with the prior, so the region we sample from at generation time is the region the decoder was trained on. Without it, each image could get a private, far-away code, and a fresh $z\sim\mathcal{N}(0,I)$ would often fall where the decoder never learned anything, giving garbage. Nearby codes might also decode to unrelated images.
+
+\textbf{(b)}
+\[
+z(0.25)=0.75(1,-2)+0.25(3,2)=(0.75+0.75,\ -1.5+0.5)=(1.5,\ -1).
+\]
+No. A smooth morph shows that the latent space is organised usefully, but it does not prove that one coordinate is ``smile''. Changes are usually spread across several coordinates.
+
+\textbf{(c)} Posterior collapse: the encoder outputs the prior for every image, so $z$ carries no information. The PixelCNN decoder can model each pixel from the earlier pixels alone, so it does not need $z$, and paying KL for an unused code only lowers the ELBO. Responses: KL annealing, free bits, a weaker decoder. Free bits penalty:
+\[
+\max(0.5,0.1)+\max(0.5,0.8)=0.5+0.8=1.3 .
+\]
+The first dimension is charged the free allowance 0.5 regardless, so there is no gain from pushing its KL lower toward 0. Collapsing it no longer pays off.
+
+\textbf{(d)} Standard ELBO $=-100-5=-105$. $\beta$-VAE objective $=-100-4\times5=-120$. With $\beta>1$ the KL counts four times as much, so the model trades reconstruction quality for codes closer to the prior (and often more independent coordinates).
+
+\textbf{(e)} It bounds $\log p(x\mid y)$. To generate class $y$, draw $z$ from the prior and decode $(z,y)$.
+
+\textbf{(f)} Squared distances from $z_e=(1.4,0.3)$:
+\[
+e_1:\ 1.96+0.09=2.05,\qquad e_2:\ 0.16+0.49=0.65,\qquad e_3:\ 0.36+0.09=0.45 .
+\]
+The nearest is $e_3=(2,0)$, so $z_q=e_3$ (index 3). The lookup has no useful gradient, so the decoder's gradient with respect to $z_q$ is copied straight to $z_e$ (straight-through). The commitment loss pulls $z_e$ toward the code it chose, so the encoder's outputs stay near the codebook. To sample a new image, train an AR prior over code indices (for example a PixelCNN or Transformer over the grid of indices), sample a grid of indices from it, look up the vectors, and decode.
+
+\textbf{(g)} AR: exact likelihood, slow sequential sampling, no latent code, sharp local detail. VAE: only a lower bound, fast one-shot sampling (one $z$, one decode), an explicit code, and often blurry outputs with a Gaussian decoder. The hybrid (a VAE with an AR decoder) has both a code and a chain-rule term, but its overall likelihood is still a bound.
+
+\end{document}
