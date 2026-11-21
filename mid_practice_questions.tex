@@ -28,7 +28,7 @@
 % ============================================================
 \section{How to use this set}
 
-This set has 22 exam-style questions. Questions 1--19 cover everything in the Week 1--3 lecture slides and hand notes, and nothing outside them. Questions 20--22 are drills written in the exact format of Quiz 1 (see the next section). The book extracts were used only to check that the explanations match the standard results.
+This set has 22 exam-style questions. Questions 1--19 cover everything in the Week 1--3 lecture slides, the hand notes and Homework 1, and nothing outside them. Questions 20--22 are drills written in the exact format of Quiz 1 (see the next section). The book extracts were used only to check that the explanations match the standard results.
 
 Every question has four parts.
 
@@ -39,14 +39,14 @@ Every question has four parts.
   \item \textbf{Solution.} The answer, worked step by step, with the reasoning in plain words.
 \end{enumerate}
 
-\textbf{Suggested plan (about 10 hours).} The early questions take longer because they introduce the most concepts. Later questions reuse them.
+\textbf{Suggested plan (about 11 hours).} The early questions take longer because they introduce the most concepts. Later questions reuse them.
 
 \begin{center}
 \begin{tabular}{@{}l>{\raggedright\arraybackslash}p{0.62\textwidth}r@{}}
 \toprule
 Questions & Topic & Time \\
 \midrule
-1--8 & Week 1: probability language, likelihood, KL, latent variables, mixtures & 3 h 50 min \\
+1--8 & Week 1: probability language, likelihood, KL, latent variables, mixtures & 4 h 15 min \\
 9--14 & Week 2: chain rule, PixelRNN, PixelCNN, sampling & 2 h 35 min \\
 15--19 & Week 3: the pen story, ELBO, KL, reparameterization, VAE variants & 2 h 20 min \\
 20--22 & Quiz 1 drills: AR joint probability and bits per dimension, the maximum likelihood proof, written explanations & 1 h 40 min \\
@@ -109,7 +109,7 @@ Four habits the quiz rewards:
 % ============================================================
 \section{The minimum practice set}
 
-The mid-exam syllabus is the Lecture 1--3 slides and the three sets of hand notes. Going through them gives a list of 115 separate topics. Each topic was matched to the question parts in this set that actually ask about it, and the smallest group of parts that covers every topic at least once was found with an exact optimizer. The result is \textbf{82 parts from 19 questions}. No smaller set covers the whole syllabus.
+The mid-exam syllabus is the Lecture 1--3 slides, the three sets of hand notes and Homework 1. Going through them gives a list of 119 separate topics. Each topic was matched to the question parts in this set that actually ask about it, and the smallest group of parts that covers every topic at least once was found with an exact optimizer. The result is \textbf{84 parts from 19 questions}. No smaller set covers the whole syllabus.
 
 \textbf{How the highlights work.} A highlighted title with no highlighted parts, such as \colorbox{yellow}{Question 15}, means do the whole question. A highlighted title with highlighted part letters, such as \colorbox{yellow}{Question 7} with \colorbox{yellow}{(f)}, means do only those parts. The letters are highlighted in both the question list and the solution.
 
@@ -120,12 +120,12 @@ Question & Parts to practise & Count \\
 \midrule
 1 & (a), (b), (c) & 3 of 4 \\
 3 & (b), (c), (e) & 3 of 5 \\
-4 & (b), (d), (f) & 3 of 6 \\
+4 & (b), (d), (f), (g) & 4 of 7 \\
 5 & (b), (c), (d) & 3 of 5 \\
 6 & (a), (b), (c), (d), (f) & 5 of 6 \\
 7 & (a), (c), (d), (e), (f) & 5 of 6 \\
-8 & (b), (c), (d), (e), (f) & 5 of 6 \\
-9 & (b), (c), (d), (e), (g) & 5 of 7 \\
+8 & (b), (c), (d), (e), (f), (g) & 6 of 7 \\
+9 & (a), (b), (d), (e), (g) & 5 of 7 \\
 10 & (a), (d), (e), (f) & 4 of 6 \\
 11 & (a), (c), (d), (e) & 4 of 5 \\
 12 & (c), (e), (f) & 3 of 8 \\
@@ -138,7 +138,7 @@ Question & Parts to practise & Count \\
 19 & whole question & 7 of 7 \\
 22 & (a) & 1 of 8 \\
 \midrule
-Total & & 82 \\
+Total & & 84 \\
 \bottomrule
 \end{tabular}
 \end{center}
@@ -617,11 +617,12 @@ A toy image machine draws $2\times2$ black-and-white images. Each pixel is white
   \item[\colorbox{yellow}{(d)}]\stepcounter{enumi} A classmate says: ``$L(\theta)$ is the probability of $\theta$, so its area over $\theta\in[0,1]$ must be 1.'' In fact the area is about 0.00117. What is wrong with the claim? If someone maximizes $p(\theta\mid\mathcal{D})$ and calls it maximum likelihood, what did they forget?
   \item Suppose instead all 12 training pixels had been white. What is $\hat\theta_{\text{ML}}$? What probability does the model give a test image with one black pixel, and what is its log?
   \item[\colorbox{yellow}{(f)}]\stepcounter{enumi} A real dataset has 10,000 images of $28\times28$ pixels, and the model gives each true pixel probability about 0.8. Why do we work with $\ell(\theta)$ instead of $L(\theta)$? Estimate $\ell$.
+  \item[\colorbox{yellow}{(g)}]\stepcounter{enumi} A second model treats the average brightness of a photo as a smooth value, $x\sim\mathcal{N}(\mu,\sigma^2)$, with both $\mu$ and $\sigma^2$ unknown. Five training photos have brightness 1, 3, 4, 4 and 8 (on a 0 to 10 scale). Write the log-likelihood, derive $\hat\mu_{\text{ML}}$ and $\hat\sigma^2_{\text{ML}}$, and compute them. How does $\hat\sigma^2_{\text{ML}}$ differ from the usual sample variance that divides by $N-1$, and why?
 \end{enumerate}
 
 \subsection{What the question is asking}
 
-We have a machine with one knob, $\theta$. We look at real training images and ask which knob setting makes these images most believable. That is maximum likelihood. Parts (d) to (f) check three classic traps: likelihood is not a probability over $\theta$, maximum likelihood can call real things impossible, and raw likelihoods are too small for a computer.
+We have a machine with one knob, $\theta$. We look at real training images and ask which knob setting makes these images most believable. That is maximum likelihood. Parts (d) to (f) check three classic traps: likelihood is not a probability over $\theta$, maximum likelihood can call real things impossible, and raw likelihoods are too small for a computer. Part (g), from Homework 1, does the same job for a Gaussian with two knobs at once.
 
 \subsection{Concepts you need}
 
@@ -673,6 +674,20 @@ L(\theta)=p(\mathcal{D}\mid\theta)
   \item \textbf{In deep models:} $\log p_\theta(x)$ has no short formula, so we climb the hill step by step with gradient descent. The principle is the same.
 \end{itemize}
 
+\subsubsection{Concept 4.4: Maximum likelihood for a Gaussian}\label{c4-4}
+
+\[
+\ell(\mu,\sigma^2)=\sum_{n=1}^{N}\log\mathcal{N}\big(x^{(n)};\mu,\sigma^2\big)=-\frac N2\log(2\pi\sigma^2)-\frac{1}{2\sigma^2}\sum_{n=1}^{N}\big(x^{(n)}-\mu\big)^2
+\]
+\begin{itemize}[nosep]
+  \item \textbf{Symbols:} $\mu$ is the centre and $\sigma^2$ the spread (variance) of the Gaussian. Both are knobs. $x^{(n)}$ is the brightness of photo $n$.
+  \item \textbf{What it says:} The first term punishes a wide spread, because a wide curve is low everywhere. The second term punishes data far from the centre, measured in units of the spread. The best knobs balance the two.
+  \item \textbf{How to maximize:} take the derivative with respect to each knob while holding the other fixed, and set both to zero. For $\sigma^2$, treat $\sigma^2$ itself as the variable, so $\frac{d}{d\sigma^2}\log\sigma^2=\frac{1}{\sigma^2}$ and $\frac{d}{d\sigma^2}\frac{1}{\sigma^2}=-\frac{1}{\sigma^4}$.
+  \item \textbf{Result:} $\hat\mu_{\text{ML}}$ is the sample mean, and $\hat\sigma^2_{\text{ML}}=\frac1N\sum_n(x^{(n)}-\hat\mu)^2$ divides by $N$.
+  \item \textbf{Biased versus unbiased:} the usual sample variance divides by $N-1$. Dividing by $N$ gives a value that is too small on average, by the factor $\frac{N-1}{N}$, because $\hat\mu$ was fitted to the same data and sits closer to it than the true centre does. The gap disappears as $N$ grows.
+  \item \textbf{Special values:} with $N=1$, $\hat\sigma^2_{\text{ML}}=0$. The model becomes an infinitely tall spike on the one training value, and $\ell\to+\infty$. This is the Gaussian version of the over-fitting in part (e).
+\end{itemize}
+
 \subsection{Solution}
 
 \textbf{(a)} Count the pixels: image 1 has 3 whites, image 2 has 4, image 3 has 3. So 10 white and 2 black out of 12. Each white pixel contributes $\theta$ and each black pixel contributes $1-\theta$:
@@ -709,6 +724,25 @@ The ratio is about $0.00449/0.000244\approx18.4$. The fitted knob explains the t
 \ell\approx7{,}840{,}000\times\log0.8\approx7{,}840{,}000\times(-0.223)\approx-1.75\times10^{6}.
 \]
 Because log never changes the order of scores, the best $\theta$ is the same either way.
+
+\colorbox{yellow}{\textbf{(g)}} The log-likelihood is in \hyperref[c4-4]{Concept 4.4}. Derivative with respect to $\mu$:
+\[
+\frac{\partial\ell}{\partial\mu}=\frac{1}{\sigma^2}\sum_{n=1}^{N}\big(x^{(n)}-\mu\big)=0
+\;\Rightarrow\;\sum_{n}x^{(n)}=N\mu
+\;\Rightarrow\;\hat\mu_{\text{ML}}=\frac1N\sum_{n=1}^{N}x^{(n)} .
+\]
+It is a maximum, because $\partial^2\ell/\partial\mu^2=-N/\sigma^2<0$. Derivative with respect to $\sigma^2$:
+\[
+\frac{\partial\ell}{\partial\sigma^2}=-\frac{N}{2\sigma^2}+\frac{1}{2\sigma^4}\sum_{n=1}^{N}\big(x^{(n)}-\mu\big)^2=0
+\;\Rightarrow\;\hat\sigma^2_{\text{ML}}=\frac1N\sum_{n=1}^{N}\big(x^{(n)}-\hat\mu\big)^2 .
+\]
+(Multiply both sides by $2\sigma^4/N$ to get the last step.) With the five photos:
+\[
+\hat\mu=\frac{1+3+4+4+8}{5}=4,\qquad
+\sum_n(x^{(n)}-4)^2=9+1+0+0+16=26,\qquad
+\hat\sigma^2_{\text{ML}}=\frac{26}{5}=5.2 .
+\]
+The usual sample variance divides by $N-1=4$, giving $26/4=6.5$. The maximum-likelihood value is smaller, because $\hat\mu=4$ was chosen from these same five values to sit in their middle, so they are closer to it than to the true centre. On average this makes $\hat\sigma^2_{\text{ML}}$ too small by the factor $\frac{N-1}{N}=0.8$. Dividing by $N-1$ removes that bias. For large $N$ the two are almost equal. Like the Bernoulli case, maximum likelihood ``copies'' the data: the centre is the average of the data and the spread is the average squared distance from it.
 % ============================================================
 \newpage
 \section{\texorpdfstring{\colorbox{yellow}{Question 5}}{Question 5}: Why maximum likelihood is the same as minimizing KL}
@@ -846,10 +880,10 @@ A sound system labels short audio clips as speech or music using one feature $x$
 p(x\mid\text{speech})=\mathcal{N}(x;0,1),\qquad p(x\mid\text{music})=\mathcal{N}(x;3,1).
 \]
 \begin{enumerate}[label=(\alph*)]
-  \item[\colorbox{yellow}{(a)}]\stepcounter{enumi} Write the joint $p(x,y)$ in its two product-rule forms. Which factor does a discriminative model learn, and which factors does a generative model learn?
+  \item[\colorbox{yellow}{(a)}]\stepcounter{enumi} Write the joint $p(x,y)$ in its two product-rule forms, and write the marginal $p(x)$ as a sum over the two classes. Which factor does a discriminative model learn, and which factors does a generative model learn?
   \item[\colorbox{yellow}{(b)}]\stepcounter{enumi} With equal priors (0.5 each), where is the decision boundary? Now use $p(\text{speech})=0.8$, $p(\text{music})=0.2$. Compute $p(\text{speech}\mid x=1.5)$ and find the new boundary. Why did it move?
   \item[\colorbox{yellow}{(c)}]\stepcounter{enumi} If music instead had variance 4 (speech keeps variance 1), what happens to the shape of the boundary? Name the two classical methods.
-  \item[\colorbox{yellow}{(d)}]\stepcounter{enumi} Can a logistic-regression classifier trained on the same clips produce a new music pitch value? What would you need? Describe how the generative classifier produces one.
+  \item[\colorbox{yellow}{(d)}]\stepcounter{enumi} A logistic-regression classifier is trained on the same clips, so it outputs only $p(y\mid x)$. Which of these can it answer: (i) the most likely class of a new clip; (ii) a new pitch value drawn from the music class; (iii) $p(x)$? What would you need for the ones it cannot answer? Describe how the generative classifier produces a new music pitch value.
   \item A language model gives the sentence ``the cat sat'' probability $1/1024$. How many bits would an ideal compressor using this model need for it? How many bits per token? Compare with a model that picks uniformly from a 50,000-word vocabulary.
   \item[\colorbox{yellow}{(f)}]\stepcounter{enumi} Ng and Jordan (2001): you have 20 labelled clips. Which kind of classifier would you expect to reach its best error sooner? With a million labelled clips, which would you expect to win? Give two other uses of a density besides classification, with one warning.
 \end{enumerate}
@@ -937,6 +971,10 @@ Compared on classification only: with lots of labels, a discriminative classifie
 \[
 p(x,y)=p(y\mid x)\,p(x)=p(x\mid y)\,p(y).
 \]
+Summing the class away gives the marginal:
+\[
+p(x)=\sum_y p(x\mid y)\,p(y)=p(\text{speech})\,\mathcal{N}(x;0,1)+p(\text{music})\,\mathcal{N}(x;3,1).
+\]
 A discriminative model learns only $p(y\mid x)$, ``given the pitch, which class?''. The generative model here learns $p(x\mid y)$ (the two Gaussians) and $p(y)$ (the priors).
 
 \colorbox{yellow}{\textbf{(b)}} \emph{Equal priors.} The two curves have the same shape, centred at 0 and 3. With equal weights, the winner switches where the curves cross, halfway between the centres: $x=1.5$.
@@ -955,7 +993,7 @@ The boundary moved from 1.5 toward the music centre. Speech is now four times mo
 
 \colorbox{yellow}{\textbf{(c)}} With different variances, the $x^2$ terms no longer cancel when you set the scores equal. The boundary becomes curved (quadratic). In 1D that means there can be \emph{two} switch points: the wide music curve can win far out on both sides, and speech wins only in a middle region. Shared variance with a straight boundary is LDA. Separate variances with a curved boundary is QDA.
 
-\colorbox{yellow}{\textbf{(d)}} No. Logistic regression learns only $p(y\mid x)$. It always needs a clip as input, and it has never learned which pitch values are typical. To generate you need $p(x\mid y)$ (or $p(x)$). The generative classifier samples by following the arrows: pick a class from $p(y)$ (speech with 0.8, music with 0.2), then draw $x$ from that class's Gaussian. To get a music clip on request, draw $x\sim\mathcal{N}(3,1)$ directly.
+\colorbox{yellow}{\textbf{(d)}} (i) Yes: compute $p(y\mid x)$ for both classes and pick the larger. (ii) No: it always needs a clip as input and has never learned which pitch values are typical for a class. (iii) No: $p(y\mid x)$ says how the classes share a clip, not how common the clip is; $p(x)=\sum_y p(x\mid y)p(y)$ needs the class-conditionals. For (ii) and (iii) you need $p(x\mid y)$ and $p(y)$, which is a generative model. The generative classifier samples by following the arrows: pick a class from $p(y)$ (speech with 0.8, music with 0.2), then draw $x$ from that class's Gaussian. To get a music clip on request, draw $x\sim\mathcal{N}(3,1)$ directly.
 
 \textbf{(e)}
 \[
@@ -973,7 +1011,7 @@ A uniform model over 50,000 words needs $\log_2 50{,}000\approx15.6$ bits per to
 
 A face generator uses a hidden code $z\in\mathbb{R}^2$ with $p(z)=\mathcal{N}(0,I)$, and a neural network decoder that defines $p_\theta(x\mid z)$.
 \begin{enumerate}[label=(\alph*)]
-  \item[\colorbox{yellow}{(a)}]\stepcounter{enumi} Write the joint $p_\theta(x,z)$, the marginal likelihood $p_\theta(x)$ and the posterior $p_\theta(z\mid x)$. A classmate writes $p_\theta(x)=\int p_\theta(x\mid z)\,dz$. What is wrong?
+  \item[\colorbox{yellow}{(a)}]\stepcounter{enumi} Write the joint $p_\theta(x,z)$, the marginal likelihood $p_\theta(x)$ and the posterior $p_\theta(z\mid x)$. A classmate writes $p_\theta(x)=\int p_\theta(x\mid z)\,dz$. What is wrong? Which of the three is the training objective when $z$ is never observed?
   \item Why is $p_\theta(x)$ hard to compute here? Why is the posterior hard for the same reason? Would it be hard if $z$ took only 10 values? What if $z$ were 100 on/off switches?
   \item[\colorbox{yellow}{(c)}]\stepcounter{enumi} Write the joint for two directed graphs over three pixels: (i) $z$ points to $x_1,x_2,x_3$; (ii) the fully autoregressive graph with no $z$. Which one has an explicit hidden code? Which one gives the exact likelihood as a plain product of known factors?
   \item[\colorbox{yellow}{(d)}]\stepcounter{enumi} Give the three responses the course takes to the hard integral, with the week of each.
@@ -1097,7 +1135,7 @@ p_\theta(x,z)=p_\theta(x\mid z)\,p(z),\qquad
 p_\theta(x)=\int p_\theta(x\mid z)\,p(z)\,dz,\qquad
 p_\theta(z\mid x)=\frac{p_\theta(x\mid z)\,p(z)}{p_\theta(x)} .
 \]
-The classmate dropped the prior $p(z)$. Without it, every code counts equally, including codes the model would almost never pick, and the result is not even guaranteed to be a proper distribution over $x$.
+The classmate dropped the prior $p(z)$. Without it, every code counts equally, including codes the model would almost never pick, and the result is not even guaranteed to be a proper distribution over $x$. The training objective is the marginal likelihood $p_\theta(x)$, in practice $\sum_n\log p_\theta(x^{(n)})$, because it is the only one of the three that does not need the unseen $z$.
 
 \textbf{(b)} The decoder is a stack of nonlinear layers, so $p_\theta(x\mid z)\,p(z)$ has no closed-form integral over $z$. The posterior divides by exactly this integral, so it is hard for the same reason.
 
@@ -1146,11 +1184,12 @@ Use $\frac{1}{\sqrt{2\pi}}\approx0.3989$, $e^{-2}\approx0.1353$ and $e^{-1.125}\
   \]
   compute the updated $\mu_1$ and $\pi_1$.
   \item[\colorbox{yellow}{(f)}]\stepcounter{enumi} How is a VAE ``the same idea as EM''?
+  \item[\colorbox{yellow}{(g)}]\stepcounter{enumi} Now give both components the same known variance $\sigma^2$, with $p(z=1)=\pi$ and $p(z=2)=1-\pi$. Write $r_1(x)$ in terms of $\pi$, $\mu_1$, $\mu_2$ and $\sigma^2$, and show that it is a sigmoid of a straight-line function of $x$. Then compute $r_1(1)$ for $\pi=0.6$, $\mu_1=0$, $\mu_2=3$, $\sigma^2=1$, showing both Gaussian densities. Use $e^{-0.5}\approx0.6065$.
 \end{enumerate}
 
 \subsection{What the question is asking}
 
-A mixture is the simplest latent-variable model: the hidden variable just says which bell curve a data point came from. Because there are only two types, adding over them is easy. The question asks you to compute how likely a brightness value is, how much each type ``takes responsibility'' for it, and how EM uses those responsibilities to update the model.
+A mixture is the simplest latent-variable model: the hidden variable just says which bell curve a data point came from. Because there are only two types, adding over them is easy. The question asks you to compute how likely a brightness value is, how much each type ``takes responsibility'' for it, and how EM uses those responsibilities to update the model. Part (g), from Homework 1, shows that with equal spreads the responsibility has the same shape as a linear classifier.
 
 \subsection{Concepts you need}
 
@@ -1177,6 +1216,7 @@ r_k(x)=p(z=k\mid x)=\frac{\pi_k\,\mathcal{N}_k(x)}{\sum_j\pi_j\,\mathcal{N}_j(x)
   \item \textbf{Symbols:} $\mathcal{N}_k(x)$ is short for $\mathcal{N}(x;\mu_k,\Sigma_k)$. The bottom is exactly $p(x)$.
   \item \textbf{What it says:} Bayes' rule with prior $\pi_k$ and Gaussian likelihood. It is a \emph{soft assignment}. Instead of ``this photo is night'', it says ``this photo is night with probability $r_1$''.
   \item \textbf{Special values:} The responsibilities of one point add to 1. A point near one centre and far from the others gets responsibility near 1 for that component.
+  \item \textbf{Equal spreads:} if every component has the same $\sigma^2$, the $x^2$ terms cancel in the ratio, and $r_1(x)$ becomes a sigmoid $1/(1+e^{-a})$ of a straight-line function $a$ of $x$. This is the same reason LDA gives straight boundaries (\hyperref[c6-2]{Concept 6.2}).
 \end{itemize}
 
 \subsubsection{Concept 8.3: The log of a sum}\label{c8-3}
@@ -1239,6 +1279,29 @@ They are very different, so you cannot move the log inside the sum. Because the 
 The night centre moves from 0.2 to about 0.217, toward the photos it is responsible for. The bright photo (0.8) has no pull at all, because night takes none of the responsibility for it.
 
 \colorbox{yellow}{\textbf{(f)}} Both maximize a likelihood with a missing $z$ by alternating two jobs: guess the hidden variable for each data point, then improve the model given those guesses. In EM the guess is the exact responsibility and the update is a closed formula. In a VAE the guess comes from an encoder network $q_\phi(z\mid x)$, and the update is a gradient step on a lower bound (the ELBO).
+
+\colorbox{yellow}{\textbf{(g)}} Bayes' rule, then divide the top and bottom by the top. The factor $\frac{1}{\sqrt{2\pi\sigma^2}}$ is the same in both Gaussians, so it cancels:
+\[
+r_1(x)=\frac{\pi\,\mathcal{N}(x;\mu_1,\sigma^2)}{\pi\,\mathcal{N}(x;\mu_1,\sigma^2)+(1-\pi)\,\mathcal{N}(x;\mu_2,\sigma^2)}
+=\frac{1}{1+\dfrac{1-\pi}{\pi}\exp\!\Big(\dfrac{(x-\mu_1)^2-(x-\mu_2)^2}{2\sigma^2}\Big)} .
+\]
+Expanding the squares, $(x-\mu_1)^2-(x-\mu_2)^2=2x(\mu_2-\mu_1)+\mu_1^2-\mu_2^2$. The $x^2$ terms are gone, so
+\[
+r_1(x)=\frac{1}{1+e^{-a(x)}},\qquad a(x)=\frac{\mu_1-\mu_2}{\sigma^2}\,x+\frac{\mu_2^2-\mu_1^2}{2\sigma^2}+\log\frac{\pi}{1-\pi},
+\]
+a sigmoid of a straight line in $x$.
+
+Numbers, with $\frac{1}{\sqrt{2\pi}}\approx0.3989$:
+\[
+\mathcal{N}(1;0,1)=0.3989\,e^{-0.5}\approx0.3989\times0.6065\approx0.2420,
+\]
+\[
+\mathcal{N}(1;3,1)=0.3989\,e^{-2}\approx0.3989\times0.1353\approx0.0540,
+\]
+\[
+r_1(1)=\frac{0.6\times0.2420}{0.6\times0.2420+0.4\times0.0540}=\frac{0.1452}{0.1452+0.0216}=\frac{0.1452}{0.1668}\approx0.871 .
+\]
+Check with the sigmoid form: $a(1)=-3+4.5+\log1.5\approx1.905$, and $1/(1+e^{-1.905})\approx1/1.149\approx0.871$. The point $x=1$ is one spread from centre 0 and two spreads from centre 3, and component 1 is also more common, so it takes about 87\% of the responsibility.
 % ============================================================
 \part{Week 2: Autoregressive Models}
 % ============================================================
@@ -1248,9 +1311,9 @@ The night centre moves from 0.2 to about 0.217, toward the photos it is responsi
 \subsection{Question}
 
 \begin{enumerate}[label=(\alph*)]
-  \item A language model writes the sentence ``the dog barked loudly'' left to right. Write $p(\text{the},\text{dog},\text{barked},\text{loudly})$ with the chain rule. Which tokens are the context for ``barked''?
+  \item[\colorbox{yellow}{(a)}]\stepcounter{enumi} A language model writes the sentence ``the dog barked loudly'' left to right. Write $p(\text{the},\text{dog},\text{barked},\text{loudly})$ with the chain rule. Which tokens are the context for ``barked''?
   \item[\colorbox{yellow}{(b)}]\stepcounter{enumi} Write the same joint in right-to-left order. Are the two joints equal? Are the individual factors equal?
-  \item[\colorbox{yellow}{(c)}]\stepcounter{enumi} The model gives the true tokens these left-to-right probabilities: 0.06, 0.02, 0.3, 0.1. Compute the joint probability and its natural log. Use $\log3.6\approx1.281$ and $\log10\approx2.303$.
+  \item The model gives the true tokens these left-to-right probabilities: 0.06, 0.02, 0.3, 0.1. Compute the joint probability and its natural log. Use $\log3.6\approx1.281$ and $\log10\approx2.303$.
   \item[\colorbox{yellow}{(d)}]\stepcounter{enumi} A student models the sentence as $p(\text{the})\,p(\text{dog})\,p(\text{barked})\,p(\text{loudly})$. Why is this wrong for text? For which kind of signal would it be exactly right, and how does the chain rule cover that case?
   \item[\colorbox{yellow}{(e)}]\stepcounter{enumi} A classical audio model is $x_t=0.1+0.6\,x_{t-1}+0.3\,x_{t-2}+\varepsilon_t$ with $\varepsilon_t\sim\mathcal{N}(0,0.04)$. The last two samples were $x_{t-1}=0.5$ and $x_{t-2}=0.2$. What is the distribution of $x_t$? What does a \emph{neural} autoregressive model change?
   \item A bug lets the network see $x_i$ while predicting $x_i$. What happens to the training loss? Show that the ``probabilities'' no longer add up to 1 over all sentences. Why does generation then fail?
@@ -1330,7 +1393,7 @@ In the graph of an autoregressive model, every earlier node points to every late
 
 \subsection{Solution}
 
-\textbf{(a)}
+\colorbox{yellow}{\textbf{(a)}}
 \[
 p(\text{the},\text{dog},\text{barked},\text{loudly})=p(\text{the})\,p(\text{dog}\mid\text{the})\,p(\text{barked}\mid\text{the},\text{dog})\,p(\text{loudly}\mid\text{the},\text{dog},\text{barked}).
 \]
@@ -1342,7 +1405,7 @@ p(\text{loudly})\,p(\text{barked}\mid\text{loudly})\,p(\text{dog}\mid\text{barke
 \]
 The joints are equal: the chain rule is an identity for every order. The factors are not. For example, $p(\text{dog}\mid\text{the})$ asks ``which noun follows \emph{the}?'', while $p(\text{dog}\mid\text{barked},\text{loudly})$ asks ``what kind of thing barks loudly?''. Different questions, different numbers, and a different job for the network.
 
-\colorbox{yellow}{\textbf{(c)}}
+\textbf{(c)}
 \[
 p=0.06\times0.02\times0.3\times0.1=3.6\times10^{-5},
 \]
