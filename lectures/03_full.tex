@@ -1,0 +1,926 @@
+\newpage
+
+\section{VAE}
+
+These notes cover everything in Lecture 3 (Variational Autoencoders), slide by slide, plus the extra pieces from the lecture's reference list (Prince Ch.~17, Kingma and Welling 2014 and 2019, Tomczak Ch.~4, Higgins et al.\ on $\beta$-VAE, van den Oord et al.\ on VQ-VAE). Every equation is followed by what each symbol means (with how to say it in brackets), what the equation says, and when it holds.
+
+All logs are natural logs (base $e$). Two numbers come up again and again:
+\[
+\tfrac{1}{2}\log(2\pi) \approx 0.919, \qquad \log 2 \approx 0.693.
+\]
+\textbf{Symbols.}
+\begin{itemize}[leftmargin=1.5em, itemsep=0pt]
+\item $\log$ (``log''): the natural logarithm. It answers ``$e$ to what power gives this number?''. Here $e$ (``ee'') is the fixed number $2.718\ldots$
+\item $\pi$ (``pie''): the circle number $3.14159\ldots$
+\item $\approx$ (``is approximately equal to''): the two sides are equal after rounding.
+\end{itemize}
+\textbf{What it says.} Half of the log of $2\pi$ is about 0.919, and the log of 2 is about 0.693. These two numbers appear in almost every numerical example below.
+
+\subsection*{0. A note on the lecture's ``pen'' story}
+
+The lecture uses a story about a pen that is pulled by a hidden force and lands at a spot. In these notes, the same maths is told as an image story instead. Nothing in the maths changes; only the words do.
+
+\begin{center}
+\begin{tabular}{>{\raggedright\arraybackslash}p{0.25\textwidth} >{\raggedright\arraybackslash}p{0.3\textwidth} >{\raggedright\arraybackslash}p{0.36\textwidth}}
+\toprule
+Symbol (how to say it) & Lecture's words & Words used in these notes \\
+\midrule
+$z$ (``zed'' or ``zee'') & the hidden pull & the hidden ``recipe'' (latent code) of an image \\
+$x$ (``ex'') & where the pen lands & the image we actually see \\
+$x = 2$ (``ex equals two'') & one recorded landing & one training image (in the toy version, a one-pixel image with brightness 2) \\
+$p(z)$ (``p of zed'') & how pulls are usually distributed & how recipes are usually distributed (the prior) \\
+$p(x \mid z)$ (``p of ex given zed'') & noisy landing given the pull & the decoder: turns a recipe into an image, with some noise \\
+$q_\phi(z \mid x)$ (``q phi of zed given ex'') & a guess at the pull from the landing & the encoder: guesses the recipe from an image \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+The vertical bar $\mid$ is read ``given'': $p(x \mid z)$ is the probability of $x$ when you already know $z$.
+
+% ------------------------------------------------------------
+\subsection*{1. The big picture: what a VAE is for}
+
+Imagine you want a computer program that can draw brand-new human faces that look real. You show it thousands of face photos. A VAE learns two things from them.
+
+\textbf{The hidden recipe.} Every face can be described by a short list of hidden numbers, for example ``how much the head is turned'', ``how wide the smile is'', ``how bright the lighting is''. Nobody writes these numbers down; they are hidden. In maths this hidden list is called $z$, the \textbf{latent code} (``latent'' just means hidden). The picture itself, all of its pixels, is called $x$.
+
+\textbf{Two networks.}
+\begin{itemize}[leftmargin=1.5em]
+\item The \textbf{decoder} takes a recipe $z$ and paints an image $x$. This is the part that generates.
+\item The \textbf{encoder} looks at a real image $x$ and guesses which recipe $z$ produced it. This part is only needed during training (and when you want to edit or compress an existing image).
+\end{itemize}
+
+\textbf{Two jobs (same as Week 1).} Any generative model should be able to do two things:
+\begin{enumerate}[leftmargin=1.5em]
+\item \textbf{Score} an image: how likely is this image under the model? Written $\log p(x)$ (``log p of ex'').
+\item \textbf{Sample} a new image: draw a recipe $z$ at random from the prior, then let the decoder paint it.
+\end{enumerate}
+
+The whole lecture is about one problem: job 1 (scoring) is very hard to compute exactly for a VAE, so we compute a lower bound on it instead, called the \textbf{ELBO} (``EL-bow''), and we train the networks by pushing that bound up.
+
+% ------------------------------------------------------------
+\subsection*{2. Background you need first}
+
+\subsubsection*{2.1 The Gaussian (bell curve)}
+
+A Gaussian with centre $\mu$ and spread $\sigma^2$ is written $\mathcal{N}(\mu, \sigma^2)$. Its density (how likely each value $z$ is) is
+\[
+\mathcal{N}(z;\, \mu, \sigma^2) = \frac{1}{\sqrt{2\pi\sigma^2}} \exp\!\left( -\frac{(z-\mu)^2}{2\sigma^2} \right).
+\]
+\textbf{Symbols.}
+\begin{itemize}[leftmargin=1.5em, itemsep=0pt]
+\item $\mathcal{N}$ (``normal'' or ``en''): the Gaussian, also called the normal distribution or bell curve.
+\item $z$ (``zed''): the value whose likelihood we are asking about, for example one pixel's brightness.
+\item $\mu$ (``mew''): the mean, the centre of the bell curve, where it is highest.
+\item $\sigma$ (``SIG-muh''): the standard deviation, how wide the bell is.
+\item $\sigma^2$ (``sigma squared''): the variance, the spread squared.
+\item $\mathcal{N}(z;\,\mu,\sigma^2)$ (``normal of zed with mean mu and variance sigma squared''): the height of that bell curve at the point $z$.
+\item $\pi$ (``pie''): $3.14159\ldots$
+\item $\sqrt{\;\;}$ (``square root of''): the number that, multiplied by itself, gives what is inside.
+\item $\exp(\cdot)$ (``exp of'', or ``e to the power of''): $e^{\text{something}}$, with $e \approx 2.718$.
+\end{itemize}
+\textbf{What it says.} The likelihood of a value $z$ is highest at the centre $\mu$ and falls off smoothly the further $z$ is from $\mu$. A small $\sigma^2$ makes it fall off fast (a narrow, tall bell); a large $\sigma^2$ makes it fall off slowly (a wide, flat bell). The fraction in front just makes the total area under the curve equal 1.
+
+Taking the log turns the product into a sum, which is much easier to work with:
+\[
+\log \mathcal{N}(z;\, \mu, \sigma^2) = -\frac{1}{2}\log(2\pi\sigma^2) - \frac{(z-\mu)^2}{2\sigma^2}.
+\]
+\textbf{Symbols.} Same as above; $\log$ (``log'') is the natural log.
+
+\textbf{What it says.}
+\begin{itemize}[leftmargin=1.5em]
+\item The first part is a constant: it does not depend on $z$. When $\sigma^2 = 1$ it is $-\tfrac{1}{2}\log(2\pi) \approx -0.919$. That is where the lecture's 0.919 comes from.
+\item The second part is a penalty for being far from the centre. It grows with the squared distance from $\mu$.
+\item Special values: at $z = \mu$ the penalty is 0 (the peak). As $z$ goes to $\pm\infty$ (``plus or minus infinity'') the log density goes to $-\infty$ (impossibly unlikely).
+\end{itemize}
+
+\subsubsection*{2.2 Expectation (average)}
+
+\[
+\mathbb{E}_q[f(z)]
+\]
+\textbf{Symbols.}
+\begin{itemize}[leftmargin=1.5em, itemsep=0pt]
+\item $\mathbb{E}$ (``E'' or ``expectation of''): the average value.
+\item $q$ (``cue''), written under the $\mathbb{E}$: the distribution we draw $z$ from when taking the average.
+\item $f(z)$ (``f of zed''): any quantity computed from $z$.
+\end{itemize}
+\textbf{What it says.} Draw $z$ many times from $q$, compute $f(z)$ each time, and take the average.
+
+Three facts used throughout, for $z \sim \mathcal{N}(\mu, \sigma^2)$:
+\[
+\mathbb{E}[(z-\mu)^2] = \sigma^2,
+\qquad
+\mathbb{E}[z^2] = \sigma^2 + \mu^2,
+\qquad
+\mathbb{E}[(a - z)^2] = \sigma^2 + (a-\mu)^2.
+\]
+\textbf{Symbols.}
+\begin{itemize}[leftmargin=1.5em, itemsep=0pt]
+\item $\sim$ (``is drawn from'' or ``tilde''): $z \sim \mathcal{N}(\mu, \sigma^2)$ means $z$ is a random number drawn from that bell curve.
+\item $a$ (``ay''): any fixed number, for example the brightness of a real pixel.
+\item $\mu$ (``mew''), $\sigma^2$ (``sigma squared''): the centre and spread of the bell curve $z$ comes from.
+\end{itemize}
+\textbf{What it says.} (1) On average, $z$'s squared distance from its own centre is the variance. (2) The average of $z^2$ is spread plus centre squared. (3) The average squared distance from a fixed point $a$ is ``the spread'' plus ``how far the centre is from $a$, squared''. If the centre sits exactly on $a$, only the spread is left.
+
+\subsubsection*{2.3 KL divergence (how different two distributions are)}
+
+\[
+\mathrm{KL}(q \,\|\, p) = \mathbb{E}_{q}\!\left[ \log \frac{q(z)}{p(z)} \right].
+\]
+\textbf{Symbols.}
+\begin{itemize}[leftmargin=1.5em, itemsep=0pt]
+\item $\mathrm{KL}$ (``kay-ell''): the Kullback--Leibler divergence (``KULL-back LYE-bler'').
+\item $\|$ (``double bar''; read the whole thing as ``KL of q from p'' or ``KL between q and p''): separates the two distributions being compared.
+\item $q(z)$ (``q of zed''), $p(z)$ (``p of zed''): two probability distributions over the same thing $z$.
+\item $\mathbb{E}_q$ (``expectation under q''): average using samples drawn from $q$.
+\end{itemize}
+\textbf{What it says.} On average, using samples from $q$, how much more likely does $q$ think each $z$ is than $p$ does?
+\begin{itemize}[leftmargin=1.5em]
+\item It is always $\ge 0$ (``greater than or equal to zero''), and it equals 0 only when $q$ and $p$ are the same distribution.
+\item It is not symmetric: $\mathrm{KL}(q\|p)$ is usually different from $\mathrm{KL}(p\|q)$. The order matters, and VAEs always use $q$ first.
+\end{itemize}
+
+\subsubsection*{2.4 Bayes' rule}
+
+\[
+p(z \mid x) = \frac{p(x \mid z)\, p(z)}{p(x)}.
+\]
+\textbf{Symbols.}
+\begin{itemize}[leftmargin=1.5em, itemsep=0pt]
+\item $p(z \mid x)$ (``p of zed given ex''): belief about the recipe after seeing the image (the posterior).
+\item $p(x \mid z)$ (``p of ex given zed''): how likely the image is if the recipe were $z$.
+\item $p(z)$ (``p of zed''): how common the recipe is before seeing anything (the prior).
+\item $p(x)$ (``p of ex''): how likely the image is overall (the evidence, or marginal).
+\end{itemize}
+\textbf{What it says.} After seeing the image $x$, our belief about its recipe $z$ is (how well $z$ explains $x$) times (how common $z$ is beforehand), divided by a normalising number $p(x)$ that makes everything add up to 1.
+
+% ------------------------------------------------------------
+\subsection*{3. The model: three distributions}
+
+A VAE is built from three distributions, plus two that come out of them.
+
+\textbf{(a) The prior.} How recipes are spread out before we see any image. A VAE almost always uses a standard bell curve:
+\[
+p(z) = \mathcal{N}(0, 1) \quad \text{(in many dimensions: } \mathcal{N}(0, I)\text{).}
+\]
+\textbf{Symbols.}
+\begin{itemize}[leftmargin=1.5em, itemsep=0pt]
+\item $p(z)$ (``p of zed''): the prior over recipes.
+\item $\mathcal{N}(0, 1)$ (``normal zero one''): a bell curve centred at 0 with variance 1, the ``standard normal''.
+\item $I$ (``eye'', the identity matrix): in many dimensions, it means every recipe number has variance 1 and the numbers are independent of each other.
+\end{itemize}
+\textbf{What it says.} Before seeing any face, every recipe number is a random number around 0, mostly between $-2$ and $2$.
+
+\textbf{(b) The decoder.} Given a recipe, how likely each image is. For images, the decoder network outputs a ``clean'' image (one value per pixel) and the actual image is that plus noise:
+\[
+p_\theta(x \mid z) = \mathcal{N}\big(f_\theta(z),\, 1\big) \quad \text{(per pixel).}
+\]
+\textbf{Symbols.}
+\begin{itemize}[leftmargin=1.5em, itemsep=0pt]
+\item $\theta$ (``THAY-tuh''): all the weights of the decoder network.
+\item $p_\theta(x \mid z)$ (``p theta of ex given zed''): the decoder's probability of image $x$ given recipe $z$.
+\item $f_\theta(z)$ (``f theta of zed''): the decoder network's output, the clean painted image for recipe $z$.
+\item $1$: the noise variance per pixel.
+\end{itemize}
+\textbf{What it says.} Each pixel of the image is the network's painted value plus a little bell-curve noise of variance 1.
+
+\textbf{(c) The joint} (the full story of how an image is made, read left to right: first pick a recipe, then paint):
+\[
+p(x, z) = p(x \mid z)\, p(z).
+\]
+\textbf{Symbols.}
+\begin{itemize}[leftmargin=1.5em, itemsep=0pt]
+\item $p(x, z)$ (``p of ex comma zed'', the joint): the probability of getting this recipe \emph{and} this image together.
+\item $p(x \mid z)$ (``p of ex given zed''): decoder. $p(z)$ (``p of zed''): prior.
+\end{itemize}
+\textbf{What it says.} The chance of ``recipe $z$ and image $x$'' is the chance of picking recipe $z$, times the chance the decoder then paints $x$ from it.
+
+\textbf{(d) The marginal} (the score of an image, considering every possible recipe that could have produced it):
+\[
+p(x) = \int p(x \mid z)\, p(z)\, dz.
+\]
+\textbf{Symbols.}
+\begin{itemize}[leftmargin=1.5em, itemsep=0pt]
+\item $p(x)$ (``p of ex''): the marginal likelihood of the image, its score.
+\item $\int \ldots dz$ (``integral of \ldots with respect to zed'' or ``integral dee-zed''): add up over every possible value of $z$.
+\end{itemize}
+\textbf{What it says.} The score of an image is the sum, over every recipe, of (how common the recipe is) times (how well it explains the image). For a real face image, $z$ might have 128 numbers, and the decoder is a neural network. There is no formula for this integral, and adding it up by brute force is hopeless. \textbf{This is the core difficulty.}
+
+\textbf{(e) The true posterior} (the exact best guess of the recipe given the image):
+\[
+p(z \mid x) = \frac{p(x, z)}{p(x)}.
+\]
+\textbf{Symbols.} $p(z \mid x)$ (``p of zed given ex''): the true posterior. $p(x, z)$ (``p of ex comma zed''): the joint. $p(x)$ (``p of ex''): the marginal.
+
+\textbf{What it says.} The exact guess about the recipe is the joint divided by the marginal (this is Bayes' rule). It needs $p(x)$ on the bottom, which we just said we cannot compute. So the true posterior is also out of reach.
+
+\textbf{(f) The encoder.} Since we cannot get the true posterior, we train a network to approximate it. The encoder looks at image $x$ and outputs a centre and a spread:
+\[
+q_\phi(z \mid x) = \mathcal{N}\big(\mu_\phi(x),\, \sigma^2_\phi(x)\big).
+\]
+\textbf{Symbols.}
+\begin{itemize}[leftmargin=1.5em, itemsep=0pt]
+\item $\phi$ (``fye'', rhymes with ``eye''; some say ``fee''): all the weights of the encoder network.
+\item $q_\phi(z \mid x)$ (``q phi of zed given ex''): the encoder's guess about the recipe of image $x$.
+\item $\mu_\phi(x)$ (``mew phi of ex''): the centre of that guess, an output of the encoder.
+\item $\sigma^2_\phi(x)$ (``sigma squared phi of ex''): the spread of that guess, also an output of the encoder.
+\end{itemize}
+\textbf{What it says.} For each image, the encoder answers: ``the recipe is probably around $\mu$, give or take $\sigma$''. This is a \textbf{family we choose} (bell curves). It is \emph{not} the true posterior unless training makes it match. Using one network for all images, instead of solving a separate puzzle for every image, is called \emph{amortised inference} in Kingma and Welling (2019): the cost of guessing is paid once, during training.
+
+\textbf{Arrows.} Prior $\to z \to$ decoder $\to x$ is the generating direction. Encoder goes backwards, $x \to z$.
+
+% ------------------------------------------------------------
+\subsection*{4. A toy model where everything can be computed exactly}
+
+To see what goes wrong and what the ELBO does, the lecture uses a model so small that the impossible integral can actually be done. In image terms: a \textbf{one-pixel image}.
+\[
+z \sim \mathcal{N}(0, 1), \qquad x \mid z \sim \mathcal{N}(z, 1), \qquad \text{observed: } x = 2.
+\]
+\textbf{Symbols.}
+\begin{itemize}[leftmargin=1.5em, itemsep=0pt]
+\item $z \sim \mathcal{N}(0,1)$ (``zed is drawn from normal zero one''): the recipe is a single hidden ``brightness setting'', drawn from the standard bell curve.
+\item $x \mid z \sim \mathcal{N}(z, 1)$ (``ex given zed is drawn from normal zed one''): the decoder. Output brightness equals the setting, plus noise of variance 1. (So here $f_\theta(z) = z$.)
+\item $x = 2$ (``ex equals two''): the one training image has brightness 2.
+\end{itemize}
+\textbf{What it says.} Pick a hidden setting at random, then the pixel shows that setting plus some noise. We saw one pixel with value 2.
+
+\subsubsection*{4.1 The exact score $\log p(x)$}
+
+Another way to write the model is
+\[
+x = z + \varepsilon, \qquad \varepsilon \sim \mathcal{N}(0, 1), \text{ independent of } z.
+\]
+\textbf{Symbols.} $\varepsilon$ (``EP-sih-lon''): the noise, a standard bell-curve number. ``Independent of $z$'' means the noise does not care what the setting was.
+
+\textbf{What it says.} The pixel is the hidden setting plus separate random noise.
+
+Adding two independent bell curves gives a bell curve whose mean is the sum of means ($0 + 0 = 0$) and whose variance is the sum of variances ($1 + 1 = 2$). So
+\[
+p(x) = \mathcal{N}(0, 2),
+\qquad
+\log p(x) = -\frac{1}{2}\log(2\pi \cdot 2) - \frac{x^2}{2 \cdot 2} = -\frac{1}{2}\log(4\pi) - \frac{x^2}{4}.
+\]
+\textbf{Symbols.} $p(x)$ (``p of ex''): the exact marginal. $\mathcal{N}(0, 2)$ (``normal zero two''): bell curve with centre 0 and variance 2. $x^2$ (``ex squared'').
+
+\textbf{What it says.} Without knowing the setting, a pixel value is a bell curve around 0 with variance 2. The log formula is just the Gaussian log density from Section 2.1 with $\mu = 0$ and $\sigma^2 = 2$.
+
+At $x = 2$, splitting $\tfrac{1}{2}\log(4\pi) = \tfrac{1}{2}\log(2\pi) + \tfrac{1}{2}\log 2$:
+\[
+\log p(2) = -(0.919 + 0.347 + 1) = -2.266.
+\]
+\textbf{What it says.} The true log score of the pixel value 2 is $-2.266$. Keep it in mind: every bound below must come out at or below $-2.266$.
+
+\subsubsection*{4.2 The exact posterior $p(z \mid x)$, by completing the square}
+
+Multiply prior and decoder (dropping constant factors that do not involve $z$):
+\[
+p(z)\,p(x \mid z) \;\propto\; \exp\!\Big(-\tfrac{1}{2}z^2\Big)\exp\!\Big(-\tfrac{1}{2}(x - z)^2\Big)
+= \exp\!\Big(-\tfrac{1}{2}\big(2z^2 - 2xz + x^2\big)\Big).
+\]
+\textbf{Symbols.}
+\begin{itemize}[leftmargin=1.5em, itemsep=0pt]
+\item $\propto$ (``is proportional to''): equal up to a constant factor that does not depend on $z$.
+\item $\exp(\cdot)$ (``e to the power of''). $z$ (``zed''): the recipe. $x$ (``ex''): the pixel.
+\end{itemize}
+\textbf{What it says.} The prior's bell curve times the decoder's bell curve, as a function of $z$, is $e$ raised to a quadratic in $z$.
+
+Now complete the square in $z$:
+\[
+2z^2 - 2xz = 2\Big(z - \frac{x}{2}\Big)^2 - \frac{x^2}{2}.
+\]
+\textbf{What it says.} The quadratic can be rewritten as ``a squared distance from $x/2$'' plus a leftover that does not involve $z$. (Expand the right side to check.)
+
+So, as a function of $z$,
+\[
+p(z \mid x) \;\propto\; \exp\!\Big(-\big(z - \tfrac{x}{2}\big)^2\Big) = \exp\!\left(-\frac{(z - x/2)^2}{2 \cdot \tfrac{1}{2}}\right).
+\]
+\textbf{What it says.} This is exactly the shape of a bell curve with centre $x/2$ and variance $\tfrac{1}{2}$ (compare with Section 2.1). So
+\[
+p(z \mid x) = \mathcal{N}\Big(\frac{x}{2},\, \frac{1}{2}\Big), \qquad p(z \mid x = 2) = \mathcal{N}\Big(1,\, \frac{1}{2}\Big).
+\]
+\textbf{Symbols.} $p(z \mid x = 2)$ (``p of zed given ex equals two''): the true posterior for our training pixel. $\mathcal{N}(1, \tfrac12)$ (``normal one, one-half''): centre 1, variance $\tfrac12$.
+\begin{itemize}[leftmargin=1.5em]
+\item Mean $x/2 = 1$: the best guess is halfway between the prior's centre (0) and the observed brightness (2), because the prior and the noise are equally uncertain (both variance 1).
+\item Variance $1/(1+1) = 1/2$: seeing the image makes us more certain about the recipe than we were before (variance shrinks from 1 to $\tfrac12$).
+\end{itemize}
+
+\subsubsection*{4.3 Why real VAEs lose these formulas}
+
+Replace the simple decoder by a neural network: $x \mid z \sim \mathcal{N}(f_\theta(z), 1)$ (``ex given zed is drawn from normal f theta of zed, one''). Now the integral for $p(x)$ has no closed form, and the posterior is some odd-shaped curve with no formula. Everything below is what we do instead. The toy keeps the exact answers so we can \emph{check} the bound against the truth.
+
+% ------------------------------------------------------------
+\subsection*{5. Jensen's inequality}
+
+The log curve bends downward (it is \emph{concave}). Because of that, the log of an average is always at least the average of the logs:
+\[
+\log \mathbb{E}[u] \;\ge\; \mathbb{E}[\log u].
+\]
+\textbf{Symbols.}
+\begin{itemize}[leftmargin=1.5em, itemsep=0pt]
+\item $u$ (``you''): any positive random quantity.
+\item $\mathbb{E}[u]$ (``expectation of you''): its average.
+\item $\ge$ (``is greater than or equal to'').
+\end{itemize}
+\textbf{What it says.} Average first then take the log, and you get a bigger (or equal) number than taking logs first then averaging.
+
+\textbf{Two-number example.} Take the numbers 2 and 8, each with weight $\tfrac12$:
+\[
+\log\Big(\tfrac{1}{2}\cdot 2 + \tfrac{1}{2}\cdot 8\Big) = \log 5 \approx 1.609,
+\qquad
+\tfrac{1}{2}\log 2 + \tfrac{1}{2}\log 8 \approx 1.386.
+\]
+The gap is $0.223$. \textbf{Equality holds only when all the numbers being averaged are equal.} If both numbers were 5, both sides would be $\log 5$.
+
+Why this matters: $p(x)$ can be written as an average (Section 6). Jensen lets us move the log inside that average, and what comes out is a lower bound.
+
+% ------------------------------------------------------------
+\subsection*{6. Deriving the ELBO (Evidence Lower BOund)}
+
+\textbf{Step 1: multiply and divide by the encoder.} Nothing is approximated yet; we multiply by $q/q = 1$:
+\[
+\log p(x) = \log \int p(x, z)\, dz
+= \log \int q(z \mid x)\,\frac{p(x, z)}{q(z \mid x)}\, dz
+= \log \mathbb{E}_{q}\!\left[ \frac{p(x, z)}{q(z \mid x)} \right].
+\]
+\textbf{Symbols.}
+\begin{itemize}[leftmargin=1.5em, itemsep=0pt]
+\item $\log p(x)$ (``log p of ex''): the score we want.
+\item $p(x, z)$ (``p of ex comma zed''): the joint.
+\item $q(z \mid x)$ (``q of zed given ex''): the encoder's guess (the $\phi$ is dropped to keep it short).
+\item $\int \ldots dz$ (``integral over zed''). $\mathbb{E}_q$ (``expectation under q'').
+\end{itemize}
+\textbf{What it says.} The image's score is the log of an average. The average is over recipes drawn from the encoder's guess, of the ratio ``how well recipe $z$ explains the image, compared with how likely the encoder thought $z$ was''. The last step uses the fact that ``integral of $q$ times something'' is the definition of ``average of something under $q$''.
+
+\textbf{Step 2: Jensen.} Move the log inside the average:
+\[
+\log p(x) \;\ge\; \mathbb{E}_{q}\big[\log p(x, z) - \log q(z \mid x)\big].
+\]
+\textbf{Symbols.} Same as Step 1. $\ge$ (``is at least'').
+
+\textbf{What it says.} The score is at least the average of ``log joint minus log encoder''. That right-hand side is the \textbf{ELBO}. ``Evidence'' is an old name for $p(x)$, so ELBO means ``a lower bound on the (log) evidence''. (We used $\log(a/b) = \log a - \log b$.)
+
+\textbf{Step 3: split the joint.} Use $\log p(x, z) = \log p(x \mid z) + \log p(z)$:
+\[
+\mathrm{ELBO} = \mathbb{E}_q\big[\log p(x \mid z)\big] + \mathbb{E}_q\big[\log p(z) - \log q(z \mid x)\big].
+\]
+\textbf{What it says.} The ELBO splits into an average of the decoder's log likelihood plus an average of ``log prior minus log encoder''. The second average is exactly minus a KL divergence (Section 2.3, with the fraction flipped). So
+\[
+\mathrm{ELBO}(x) = \underbrace{\mathbb{E}_{q_\phi(z \mid x)}\big[\log p_\theta(x \mid z)\big]}_{\text{reconstruction}} \;-\; \underbrace{\mathrm{KL}\big(q_\phi(z \mid x)\,\|\,p(z)\big)}_{\text{regulariser}}
+\]
+\textbf{Symbols.}
+\begin{itemize}[leftmargin=1.5em, itemsep=0pt]
+\item $\mathrm{ELBO}(x)$ (``EL-bow of ex''): the bound for one image $x$.
+\item $\mathbb{E}_{q_\phi(z \mid x)}$ (``expectation under q phi of zed given ex''): average over recipes drawn from the encoder.
+\item $\log p_\theta(x \mid z)$ (``log p theta of ex given zed''): how well the decoder repaints $x$ from recipe $z$.
+\item $\mathrm{KL}(q_\phi(z \mid x)\,\|\,p(z))$ (``KL of q phi from the prior''): how far the encoder's guess is from the prior.
+\end{itemize}
+\textbf{What each term means, for faces:}
+\begin{itemize}[leftmargin=1.5em]
+\item \textbf{Reconstruction.} Encode a face, draw a recipe from the encoder's guess, decode it. How close is the painted face to the original? Higher is better. This term wants the recipe to carry as much detail about the face as possible.
+\item \textbf{KL regulariser.} How far is the encoder's guess for this face from the plain prior $\mathcal{N}(0,1)$? Lower is better. This term wants every face's recipe to stay near the standard bell curve, so that later, random draws from $\mathcal{N}(0,1)$ decode into real-looking faces.
+\end{itemize}
+The two terms pull against each other. Training finds a balance.
+
+\textbf{In code} we minimise a loss, so the loss is the negative:
+\[
+\mathcal{L}(x) = -\mathrm{ELBO}(x) = -\mathbb{E}_q\big[\log p(x \mid z)\big] + \mathrm{KL}\big(q(z \mid x)\,\|\,p(z)\big).
+\]
+\textbf{Symbols.} $\mathcal{L}(x)$ (``script L of ex'', the loss): the number the optimiser pushes down.
+
+\textbf{What it says.} Loss $=$ reconstruction error $+$ KL penalty. Minimising the loss is the same as maximising the ELBO.
+
+% ------------------------------------------------------------
+\subsection*{7. The gap is a KL divergence}
+
+How far below $\log p(x)$ is the ELBO? A second derivation gives the exact answer.
+
+Since $\log p(x)$ does not depend on $z$, averaging it over $q$ changes nothing. By Bayes' rule, $p(x) = p(x, z)/p(z \mid x)$. Multiply and divide by $q$ inside the log:
+\[
+\log p(x) = \mathbb{E}_q\!\left[\log \frac{p(x, z)}{p(z \mid x)}\right]
+= \mathbb{E}_q\!\left[\log \frac{p(x, z)}{q(z \mid x)}\right] + \mathbb{E}_q\!\left[\log \frac{q(z \mid x)}{p(z \mid x)}\right].
+\]
+\textbf{Symbols.} $p(z \mid x)$ (``p of zed given ex''): the true posterior. The rest as in Section 6.
+
+\textbf{What it says.} The score splits exactly (no inequality this time) into two averages. The first piece is the ELBO. The second is a KL divergence. So
+\[
+\log p(x) = \mathrm{ELBO}(x) + \mathrm{KL}\big(q(z \mid x)\,\|\,p(z \mid x)\big)
+\]
+\textbf{Symbols.} $\mathrm{KL}(q(z \mid x)\,\|\,p(z \mid x))$ (``KL of the encoder from the true posterior''): how wrong the encoder's guess is.
+
+\textbf{What it says.} True score $=$ bound $+$ gap, and the gap is how far the encoder is from the true posterior.
+\begin{itemize}[leftmargin=1.5em]
+\item The gap is always $\ge 0$, which proves again that the ELBO is a lower bound.
+\item The gap is 0 exactly when $q(z \mid x) = p(z \mid x)$, that is, when the encoder guesses perfectly. (This matches Jensen: only then is the ratio $p(x,z)/q(z \mid x) = p(x)$ the same for every $z$.)
+\item \textbf{Do not confuse the two KLs.} $\mathrm{KL}(q \| p(z))$, against the \emph{prior}, sits \emph{inside} the ELBO and is something we compute. $\mathrm{KL}(q \| p(z \mid x))$, against the \emph{true posterior}, is the \emph{gap} and we usually cannot compute it.
+\end{itemize}
+
+\textbf{What raising the ELBO does} (Kingma and Welling 2019). Since $\log p(x)$ is fixed for fixed decoder weights, pushing the ELBO up with respect to the encoder can only shrink the gap: the encoder becomes a better guesser. Pushing it up with respect to the decoder tends to raise $\log p(x)$: the model gets better at the data. One objective does both jobs at once.
+
+\textbf{What you are allowed to claim.} Maximising the ELBO maximises $\log p(x)$ only if the encoder family (bell curves) is able to match the true posterior. Otherwise you are maximising a lower bound, and the missing piece is exactly $\mathrm{KL}(q \| p(z \mid x))$.
+
+% ------------------------------------------------------------
+\subsection*{8. Two encoders for the same image ($x = 2$)}
+
+The lecture compares two encoders on the toy model. For the decoder $\mathcal{N}(z, 1)$,
+\[
+\log p(x \mid z) = -0.919 - \tfrac{1}{2}(x - z)^2
+\quad\Longrightarrow\quad
+\mathbb{E}_q\big[\log p(x \mid z)\big] = -0.919 - \tfrac{1}{2}\,\mathbb{E}_q\big[(x - z)^2\big].
+\]
+\textbf{Symbols.}
+\begin{itemize}[leftmargin=1.5em, itemsep=0pt]
+\item $\log p(x \mid z)$ (``log p of ex given zed''): the decoder's log likelihood of pixel $x$ from setting $z$.
+\item $(x - z)^2$ (``ex minus zed, squared''): squared error between the real pixel and the painted one.
+\item $\Longrightarrow$ (``implies'' or ``so'').
+\item $\mathbb{E}_q[\ldots]$ (``expectation under q''): average over recipes from the encoder.
+\end{itemize}
+\textbf{What it says.} The decoder's log score is a constant minus half the squared error. So the average reconstruction score is the same constant minus half the \emph{average} squared error.
+
+\begin{itemize}[leftmargin=1.5em]
+\item \textbf{Lazy encoder} $q = \mathcal{N}(0, 1)$: ignores the image and always returns the prior.
+\item \textbf{Perfect encoder} $q = \mathcal{N}(1, \tfrac12)$: equals the true posterior from Section 4.2.
+\end{itemize}
+
+\begin{center}
+\begin{tabular}{>{\raggedright\arraybackslash}p{0.27\textwidth} >{\raggedright\arraybackslash}p{0.3\textwidth} >{\raggedright\arraybackslash}p{0.3\textwidth}}
+\toprule
+Quantity & Lazy, $q = \mathcal{N}(0,1)$ & Perfect, $q = \mathcal{N}(1, \tfrac12)$ \\
+\midrule
+$\mathbb{E}[(2 - z)^2]$ & $1 + (2-0)^2 = 5$ & $\tfrac12 + (2-1)^2 = 1.5$ \\
+Reconstruction & $-0.919 - 2.5 = -3.419$ & $-0.919 - 0.75 = -1.669$ \\
+$\mathrm{KL}(q \| p(z))$ & 0 & 0.597 \\
+ELBO & $-3.419$ & $-2.266$ \\
+True $\log p(x)$ & $-2.266$ & $-2.266$ \\
+Gap $= \mathrm{KL}(q \| p(z \mid x))$ & 1.153 & 0 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+(The first row uses the fact from Section 2.2: average squared distance $=$ spread $+$ (distance of centre)$^2$. The 0.597 is computed in Section 9.)
+
+\textbf{What the table teaches.}
+\begin{itemize}[leftmargin=1.5em]
+\item The lazy encoder pays nothing to the prior (KL $=0$) but still loses. Its recipes do not describe this image, so reconstruction is poor, and its gap is 1.153.
+\item The perfect encoder pays 0.597 to the prior, but reconstructs much better. Its ELBO equals the true $\log p(x)$ exactly; the gap is gone.
+\item In face terms: an encoder that outputs the same blurry ``average recipe'' for every face looks perfectly regular to the prior, yet scores badly. Spending some KL to describe the face is worth it.
+\end{itemize}
+
+\textbf{Extra check: the ELBO's best encoder is the true posterior.} For a general encoder $q = \mathcal{N}(\mu, \sigma^2)$ on this toy (using Section 9's KL formula),
+\[
+\mathrm{ELBO}(\mu, \sigma^2) = -0.919 - \tfrac{1}{2}\big(\sigma^2 + (2 - \mu)^2\big) - \tfrac{1}{2}\big(\mu^2 + \sigma^2 - \log\sigma^2 - 1\big).
+\]
+\textbf{Symbols.} $\mu$ (``mew''), $\sigma^2$ (``sigma squared''): the encoder's centre and spread for the pixel $x = 2$. $\mathrm{ELBO}(\mu, \sigma^2)$ (``EL-bow as a function of mu and sigma squared'').
+
+\textbf{What it says.} The ELBO $=$ reconstruction (constant minus half the average squared error, from Section 2.2) minus the KL. Setting the slope in $\mu$ to zero gives $(2 - \mu) - \mu = 0$, so $\mu = 1$. Setting the slope in $\sigma^2$ to zero gives $-\tfrac12 - \tfrac12 + \tfrac{1}{2\sigma^2} = 0$, so $\sigma^2 = \tfrac12$. That is exactly $p(z \mid x = 2)$. Maximising the ELBO over the encoder recovered the true posterior, because here a bell curve can match it.
+
+% ------------------------------------------------------------
+\subsection*{9. Deriving the KL between two bell curves}
+
+We need $\mathrm{KL}(q \| p)$ with $q = \mathcal{N}(\mu, \sigma^2)$ (the encoder's guess) and $p = \mathcal{N}(0, 1)$ (the prior).
+
+\textbf{Step 1: write both logs} (Section 2.1):
+\[
+\log q(z) = -\tfrac{1}{2}\log(2\pi\sigma^2) - \frac{(z - \mu)^2}{2\sigma^2},
+\qquad
+\log p(z) = -\tfrac{1}{2}\log(2\pi) - \frac{z^2}{2}.
+\]
+\textbf{Symbols.} $\log q(z)$ (``log q of zed''): the encoder's log density, a bell curve with centre $\mu$ (``mew'') and variance $\sigma^2$ (``sigma squared''). $\log p(z)$ (``log p of zed''): the prior's log density, centre 0 and variance 1.
+
+\textbf{What it says.} Both are the Gaussian log formula with their own centre and spread plugged in.
+
+\textbf{Step 2: subtract.} The $\log(2\pi)$ parts cancel, leaving
+\[
+\log\frac{q(z)}{p(z)} = -\tfrac{1}{2}\log\sigma^2 - \frac{(z - \mu)^2}{2\sigma^2} + \frac{z^2}{2}.
+\]
+\textbf{What it says.} The log of the ratio, at each recipe value $z$: how much more the encoder likes $z$ than the prior does.
+
+\textbf{Step 3: average over $q$.} Use $\mathbb{E}[(z-\mu)^2] = \sigma^2$ and $\mathbb{E}[z^2] = \sigma^2 + \mu^2$:
+\[
+\mathrm{KL} = -\tfrac{1}{2}\log\sigma^2 - \frac{\sigma^2}{2\sigma^2} + \frac{\sigma^2 + \mu^2}{2}
+= -\tfrac{1}{2}\log\sigma^2 - \tfrac{1}{2} + \tfrac{1}{2}\sigma^2 + \tfrac{1}{2}\mu^2.
+\]
+\textbf{What it says.} Each piece of Step 2 is replaced by its average, which leaves only $\mu$ and $\sigma^2$. Tidying up:
+\[
+\mathrm{KL}\big(\mathcal{N}(\mu, \sigma^2)\,\|\,\mathcal{N}(0,1)\big) = \tfrac{1}{2}\big(\mu^2 + \sigma^2 - \log\sigma^2 - 1\big)
+\]
+\textbf{Symbols.} $\mu$ (``mew''): the encoder's centre. $\sigma^2$ (``sigma squared''): the encoder's spread. $\log\sigma^2$ (``log sigma squared'').
+
+\textbf{Reading the formula.}
+\begin{itemize}[leftmargin=1.5em]
+\item $\mu^2$: penalty for the guess's centre being away from 0.
+\item $\sigma^2 - \log\sigma^2 - 1$: penalty for the spread being different from 1. This is 0 at $\sigma^2 = 1$ and positive otherwise. As $\sigma^2 \to 0$ (``sigma squared goes to zero'', the encoder becomes completely certain) the $-\log\sigma^2$ part goes to $+\infty$: the prior strongly dislikes a zero-width guess. As $\sigma^2 \to \infty$ the $\sigma^2$ part goes to $+\infty$.
+\item At the prior itself ($\mu = 0$, $\sigma^2 = 1$): $\tfrac12(0 + 1 - 0 - 1) = 0$, as it must be.
+\end{itemize}
+\textbf{Check on the perfect encoder} ($\mu = 1$, $\sigma^2 = \tfrac12$, $\log\tfrac12 = -0.693$):
+\[
+\mathrm{KL} = \tfrac{1}{2}\big(1 + \tfrac{1}{2} - (-0.693) - 1\big) = \tfrac{1}{2}(1.193) = 0.597.
+\]
+\textbf{Many recipe numbers.} Real VAEs use a recipe with many numbers (for example 128), and the encoder gives each number its own centre and spread, independently (a ``diagonal'' Gaussian). The KL is then just the sum over the numbers (Kingma and Welling 2014, Appendix B):
+\[
+\mathrm{KL}\big(q_\phi(z \mid x)\,\|\,\mathcal{N}(0, I)\big) = \frac{1}{2}\sum_{j=1}^{J}\big(\mu_j^2 + \sigma_j^2 - \log\sigma_j^2 - 1\big).
+\]
+\textbf{Symbols.}
+\begin{itemize}[leftmargin=1.5em, itemsep=0pt]
+\item $J$ (``jay''): how many numbers are in the recipe.
+\item $j$ (``jay'', small): which recipe number we are on, from 1 to $J$.
+\item $\sum_{j=1}^{J}$ (``sum from jay equals one to capital jay''): add up the term for every recipe number.
+\item $\mu_j$ (``mew jay''), $\sigma_j^2$ (``sigma jay squared''): the encoder's centre and spread for recipe number $j$.
+\item $\mathcal{N}(0, I)$ (``normal zero, eye''): the many-dimensional standard prior.
+\end{itemize}
+\textbf{What it says.} The total KL is the one-number KL, computed separately for each recipe number, then added up. Because this has a formula, it is computed exactly in code; no sampling is needed for this term.
+
+% ------------------------------------------------------------
+\subsection*{10. Slopes (derivatives) of the KL}
+
+Training needs to know which way to nudge $\mu$ and $\sigma$. Differentiate the KL formula from Section 9:
+\[
+\frac{\partial\,\mathrm{KL}}{\partial \mu} = \mu,
+\qquad
+\frac{\partial\,\mathrm{KL}}{\partial \sigma} = \frac{1}{2}\left(2\sigma - \frac{2}{\sigma}\right) = \sigma - \frac{1}{\sigma}.
+\]
+\textbf{Symbols.}
+\begin{itemize}[leftmargin=1.5em, itemsep=0pt]
+\item $\partial$ (``partial'' or ``del''): a partial derivative, the slope in one variable while holding the others fixed.
+\item $\frac{\partial\,\mathrm{KL}}{\partial \mu}$ (``partial KL by partial mu'' or ``dee KL dee mu''): how fast the KL changes when $\mu$ is nudged.
+\item $\frac{\partial\,\mathrm{KL}}{\partial \sigma}$ (``dee KL dee sigma''): how fast the KL changes when $\sigma$ (``sigma'', the standard deviation) is nudged.
+\end{itemize}
+\textbf{What it says.} (For the second, $\sigma^2$ has slope $2\sigma$, and $\log\sigma^2 = 2\log\sigma$ has slope $2/\sigma$.)
+\begin{itemize}[leftmargin=1.5em]
+\item \textbf{$\mu$ slope.} Positive when $\mu > 0$, negative when $\mu < 0$. Since we minimise the loss (which contains $+\mathrm{KL}$), gradient descent moves $\mu$ toward 0. The KL pulls every face's recipe toward the centre.
+\item \textbf{$\sigma$ slope.} Zero at $\sigma = 1$. Negative when $\sigma < 1$, so minimising pushes $\sigma$ back up. Positive when $\sigma > 1$, so minimising pushes it down. The KL pulls the spread toward 1.
+\end{itemize}
+\textbf{Why networks output $\log\sigma^2$.} A spread must be positive, but a network's raw output can be any number. So the encoder outputs $\ell = \log\sigma^2$, and we use $\sigma^2 = e^{\ell}$, which is always positive, and $\sigma = e^{\ell/2}$. Writing the KL in terms of $\ell$,
+\[
+\mathrm{KL} = \tfrac{1}{2}\big(\mu^2 + e^{\ell} - \ell - 1\big)
+\quad\Longrightarrow\quad
+\frac{\partial\,\mathrm{KL}}{\partial \ell} = \tfrac{1}{2}\big(e^{\ell} - 1\big) = \tfrac{1}{2}\big(\sigma^2 - 1\big).
+\]
+\textbf{Symbols.}
+\begin{itemize}[leftmargin=1.5em, itemsep=0pt]
+\item $\ell$ (``ell''): the log-variance, $\log\sigma^2$, what the encoder actually outputs.
+\item $e^{\ell}$ (``e to the ell''): turns $\ell$ back into the variance $\sigma^2$.
+\item $\frac{\partial\,\mathrm{KL}}{\partial \ell}$ (``dee KL dee ell''): slope of the KL in $\ell$.
+\end{itemize}
+\textbf{What it says.} In terms of the log-variance, the KL's slope is half of ``variance minus 1''. It is zero at $\sigma^2 = 1$ ($\ell = 0$): the same resting point as before.
+
+% ------------------------------------------------------------
+\subsection*{11. The reconstruction term and its slope}
+
+\textbf{Toy decoder.} With $p(x \mid z) = \mathcal{N}(z, 1)$:
+\[
+\log p(x \mid z) = -\tfrac{1}{2}\log(2\pi) - \tfrac{1}{2}(x - z)^2,
+\qquad
+\frac{\partial}{\partial z}\log p(x \mid z) = x - z.
+\]
+\textbf{Symbols.}
+\begin{itemize}[leftmargin=1.5em, itemsep=0pt]
+\item $\log p(x \mid z)$ (``log p of ex given zed''): the decoder's log likelihood.
+\item $\frac{\partial}{\partial z}$ (``dee by dee zed''): slope with respect to the recipe $z$.
+\item $x - z$ (``ex minus zed''): real pixel minus painted pixel.
+\end{itemize}
+\textbf{What it says.} This is the slope with respect to the recipe $z$ (not yet with respect to the decoder weights $\theta$). At $x = 2$, $z = 1$, the slope is $+1$: moving $z$ up makes the image more likely, because the real brightness (2) is above what $z = 1$ paints (1). At $z = x$ the slope is 0: perfect match.
+
+\textbf{Neural decoder.} If the decoder paints $f_\theta(z)$ with noise variance 1, the chain rule gives
+\[
+\frac{\partial}{\partial z}\log p(x \mid z) = \big(x - f_\theta(z)\big)\, f'_\theta(z).
+\]
+\textbf{Symbols.}
+\begin{itemize}[leftmargin=1.5em, itemsep=0pt]
+\item $f_\theta(z)$ (``f theta of zed''): the decoder network's painted image.
+\item $f'_\theta(z)$ (``f theta prime of zed''): the slope of the decoder's output with respect to the recipe.
+\end{itemize}
+\textbf{What it says.} The slope is (how far the painted image is from the real image) times (how much the painting changes when the recipe changes).
+
+\textbf{Connection to squared error.} For an image with many pixels and a Gaussian decoder with noise variance 1 per pixel,
+\[
+-\log p(x \mid z) = \frac{D}{2}\log(2\pi) + \frac{1}{2}\sum_{i=1}^{D}\big(x_i - f_\theta(z)_i\big)^2.
+\]
+\textbf{Symbols.}
+\begin{itemize}[leftmargin=1.5em, itemsep=0pt]
+\item $D$ (``dee''): the number of pixels (for a $64 \times 64$ grey image, $D = 4096$).
+\item $i$ (``eye''): which pixel, from 1 to $D$.
+\item $x_i$ (``ex eye''): the real value of pixel $i$. $f_\theta(z)_i$ (``f theta of zed, eye''): the painted value of pixel $i$.
+\item $\sum_{i=1}^{D}$ (``sum over eye from one to dee''): add up over all pixels.
+\end{itemize}
+\textbf{What it says.} The negative log likelihood is a constant plus half the total squared pixel error. Drop the constant and this is just the usual sum of squared pixel errors (MSE, up to scaling). So ``Gaussian decoder'' and ``squared-error reconstruction loss'' are the same thing.
+
+For black-and-white images with pixels in $[0,1]$, Kingma and Welling (2014) also use a Bernoulli decoder, which gives the binary cross-entropy loss:
+\[
+\log p(x \mid z) = \sum_{i=1}^{D}\Big(x_i \log y_i + (1 - x_i)\log(1 - y_i)\Big), \qquad y = f_\theta(z).
+\]
+\textbf{Symbols.}
+\begin{itemize}[leftmargin=1.5em, itemsep=0pt]
+\item $y$ (``why''): the decoder's output, $y_i$ (``why eye'') being the predicted probability that pixel $i$ is white.
+\item $x_i$ (``ex eye''): the real pixel, 1 for white and 0 for black.
+\end{itemize}
+\textbf{What it says.} For each pixel: if it is white ($x_i = 1$) only $\log y_i$ counts, so the decoder should predict a high $y_i$; if it is black ($x_i = 0$) only $\log(1 - y_i)$ counts, so it should predict a low $y_i$. Add over all pixels.
+
+\textbf{Why Gaussian-decoder VAEs make blurry images.} For a given recipe, the decoder outputs the \emph{average} of all images that recipe could stand for. If one recipe could equally mean ``eyes open'' or ``eyes closed'', the average is a ghostly half-open eye. Averaging many sharp possibilities gives a blurry picture, even when the bound is tight.
+
+% ------------------------------------------------------------
+\subsection*{12. The reparameterisation trick}
+
+\textbf{The problem: you cannot take a slope through a random draw.} The reconstruction term needs $z$ drawn from $q_\phi(z \mid x)$. To train the encoder we need to know how the loss changes when $\phi$ (and so $\mu$, $\sigma$) changes slightly. But ``draw a random number from $\mathcal{N}(\mu, \sigma^2)$'' is not a smooth function of $\mu$: a tiny change in $\mu$ changes which random number you would have got, and that jump is not a slope. Backpropagation gets stuck at the sampling step.
+
+\textbf{The fix: move the randomness outside.} Draw plain noise that does not depend on the network, then shift and stretch it:
+\[
+\varepsilon \sim \mathcal{N}(0, 1), \qquad z = \mu_\phi(x) + \sigma_\phi(x)\,\varepsilon.
+\]
+\textbf{Symbols.}
+\begin{itemize}[leftmargin=1.5em, itemsep=0pt]
+\item $\varepsilon$ (``EP-sih-lon''): a standard random number, drawn fresh each time. It has nothing to do with the weights.
+\item $\mu_\phi(x)$ (``mew phi of ex''), $\sigma_\phi(x)$ (``sigma phi of ex''): the encoder's centre and standard deviation for image $x$.
+\item $z$ (``zed''): the sampled recipe.
+\end{itemize}
+\textbf{What it says.} To sample a recipe, take standard noise, stretch it by $\sigma$ and shift it by $\mu$. This $z$ has exactly the distribution $\mathcal{N}(\mu, \sigma^2)$. Now, once $\varepsilon$ is drawn, the path $\phi \to (\mu, \sigma) \to z \to \log p(x \mid z)$ is an ordinary function, and its slopes are simple:
+\[
+\frac{\partial z}{\partial \mu} = 1, \qquad \frac{\partial z}{\partial \sigma} = \varepsilon.
+\]
+\textbf{Symbols.} $\frac{\partial z}{\partial \mu}$ (``dee zed dee mu''), $\frac{\partial z}{\partial \sigma}$ (``dee zed dee sigma''): how much the sampled recipe moves when the centre or the spread is nudged.
+
+\textbf{What it says.} Nudge the centre by a bit and $z$ moves by the same bit. Nudge the spread by a bit and $z$ moves by $\varepsilon$ times that bit. With many recipe numbers, the same thing happens number by number: $z_j = \mu_j + \sigma_j\varepsilon_j$ (``zed jay equals mew jay plus sigma jay epsilon jay'').
+
+\textbf{Special value $\varepsilon = 0$.} Then $z = \mu$ and $\partial z / \partial\sigma = 0$, so the spread $\sigma$ receives no signal from the reconstruction. If you always set $\varepsilon = 0$ (``just use the mean''), $\sigma$ is never trained by reconstruction and you are no longer optimising the ELBO.
+
+% ------------------------------------------------------------
+\subsection*{13. Chain rule on one sample (worked example)}
+
+Setting: $x = 2$, encoder currently outputs $\mu = 0$, $\sigma = 1$, and we draw $\varepsilon = 1$. So $z = 0 + 1 \cdot 1 = 1$.
+
+Reconstruction slope in $z$: $x - z = 2 - 1 = 1$. Chain rule:
+\[
+\frac{\partial \log p}{\partial \mu} = \frac{\partial \log p}{\partial z}\cdot\frac{\partial z}{\partial \mu} = 1 \cdot 1 = 1,
+\qquad
+\frac{\partial \log p}{\partial \sigma} = \frac{\partial \log p}{\partial z}\cdot\varepsilon = 1 \cdot 1 = 1.
+\]
+\textbf{Symbols.}
+\begin{itemize}[leftmargin=1.5em, itemsep=0pt]
+\item $\log p$ (``log p''): short for the reconstruction score $\log p(x \mid z)$.
+\item $\frac{\partial \log p}{\partial \mu}$ (``dee log p dee mu''): how the reconstruction score changes when the encoder's centre is nudged.
+\item $\frac{\partial \log p}{\partial z}$ (``dee log p dee zed''): how it changes when the recipe is nudged (here $x - z = 1$).
+\item $\cdot$ (``times'').
+\end{itemize}
+\textbf{What it says.} Chain rule: (effect of $z$ on the score) times (effect of $\mu$ or $\sigma$ on $z$). Both come out as 1 here.
+
+At $\mu = 0$, $\sigma = 1$ the KL slopes are $\mu = 0$ and $\sigma - 1/\sigma = 0$. The loss is $L = -\log p(x \mid z) + \mathrm{KL}$, so
+\[
+\frac{\partial L}{\partial \mu} = -1, \qquad \frac{\partial L}{\partial \sigma} = -1.
+\]
+\textbf{Symbols.} $L$ (``ell'', capital): the loss for this one sample. $\frac{\partial L}{\partial \mu}$ (``dee L dee mu''), $\frac{\partial L}{\partial \sigma}$ (``dee L dee sigma'').
+
+\textbf{What it says.} The loss has the opposite sign of the score, and the KL adds nothing here, so both slopes are $-1$. Gradient descent moves opposite to the slope, so one step \emph{increases} both $\mu$ and $\sigma$.
+
+\textbf{Warning: one $\varepsilon$ is noisy, especially for $\sigma$.} The single-sample slope for $\sigma$ is $(x - z)\varepsilon$. Its true average over all $\varepsilon$ is different. Using $z = \mu + \sigma\varepsilon$ and $\mathbb{E}[\varepsilon] = 0$, $\mathbb{E}[\varepsilon^2] = 1$:
+\[
+\mathbb{E}\big[(x - \mu - \sigma\varepsilon)\,\varepsilon\big] = (x - \mu)\,\mathbb{E}[\varepsilon] - \sigma\,\mathbb{E}[\varepsilon^2] = -\sigma.
+\]
+\textbf{Symbols.} $\mathbb{E}[\varepsilon]$ (``expectation of epsilon''): average noise, which is 0. $\mathbb{E}[\varepsilon^2]$ (``expectation of epsilon squared''): average squared noise, which is 1.
+
+\textbf{What it says.} Averaged over all possible noise draws, the reconstruction slope for $\sigma$ is $-\sigma$. Here that is $-1$, while the single sample said $+1$: opposite signs. (For $\mu$ the average slope is $x - \mu = 2$, and the sample said 1.) On average the samples point the right way (the estimate is \emph{unbiased}), but any one sample can be far off. Using one $\varepsilon$ per image is the standard choice anyway; averaging over a minibatch of many images smooths out the noise.
+
+% ------------------------------------------------------------
+\subsection*{14. One full training step}
+
+For each training image $x$ in a minibatch:
+\begin{enumerate}[leftmargin=1.5em]
+\item \textbf{Encode.} The encoder outputs $\mu$ and $\ell = \log\sigma^2$. Set $\sigma = \exp(\ell/2)$.
+\item \textbf{Sample with the trick.} Draw $\varepsilon \sim \mathcal{N}(0, I)$, set $z = \mu + \sigma\varepsilon$.
+\item \textbf{Decode and score.} Compute $-\log p(x \mid z)$ (for example squared pixel error). Add the closed-form KL from Section 9. The sum is $-\mathrm{ELBO}$ for one sample.
+\item \textbf{Backpropagate.} The reconstruction slope reaches $\mu$ with weight 1 and reaches $\sigma$ with weight $\varepsilon$. The KL slopes ($\mu$ and $\sigma - 1/\sigma$) are added along the way. Update encoder and decoder weights together.
+\end{enumerate}
+In formula form, this is the estimator from Kingma and Welling (2014) (they call it SGVB, stochastic gradient variational Bayes; the full training loop is called AEVB). With $S$ noise draws per image (the paper calls this number $L$),
+\[
+\widetilde{\mathrm{ELBO}}(x) = \frac{1}{S}\sum_{s=1}^{S}\log p_\theta\big(x \mid z^{(s)}\big) - \mathrm{KL}\big(q_\phi(z \mid x)\,\|\,p(z)\big),
+\qquad z^{(s)} = \mu_\phi(x) + \sigma_\phi(x)\,\varepsilon^{(s)}.
+\]
+\textbf{Symbols.}
+\begin{itemize}[leftmargin=1.5em, itemsep=0pt]
+\item $\widetilde{\mathrm{ELBO}}(x)$ (``ELBO tilde of ex''): an estimate of the ELBO from a few random samples.
+\item $S$ (``ess''): how many noise draws per image. $s$ (small ``ess''): which draw, from 1 to $S$.
+\item $\frac{1}{S}\sum_{s=1}^{S}$ (``one over ess, times the sum over ess''): the average over the draws.
+\item $\varepsilon^{(s)}$ (``epsilon ess''): the $s$-th noise draw. $z^{(s)}$ (``zed ess''): the $s$-th sampled recipe.
+\end{itemize}
+\textbf{What it says.} Estimate the reconstruction term by averaging over a few sampled recipes, and subtract the exact KL. For a dataset of $N$ (``en'') images and a minibatch of $M$ (``em'') of them, the full-data ELBO is estimated by $\tfrac{N}{M}$ times the minibatch sum. Kingma and Welling found $S = 1$ is enough when $M$ is large (for example $M = 100$).
+
+% ------------------------------------------------------------
+\subsection*{15. Generating a new image after training}
+
+\[
+z \sim p(z) = \mathcal{N}(0, I), \qquad x \sim p_\theta(x \mid z).
+\]
+\textbf{Symbols.} $z \sim p(z)$ (``zed drawn from the prior''). $x \sim p_\theta(x \mid z)$ (``ex drawn from the decoder given zed''). In practice people often just show $f_\theta(z)$, the clean painted image.
+
+\textbf{What it says.} Draw a recipe from the \textbf{prior}, then decode. The encoder is \textbf{not} used. You only draw $z$ from $q(z \mid x)$ when you already have a real image $x$ that you want to encode (for example to reconstruct it or edit it). A new face needs a fresh recipe from the prior, not the recipe guess for yesterday's training photo.
+
+% ------------------------------------------------------------
+\subsection*{16. What the prior KL buys you}
+
+\textbf{Without the KL term} the encoder could give every training face its own private, far-apart, tiny region of recipe space. Reconstruction would be perfect, but:
+\begin{itemize}[leftmargin=1.5em]
+\item recipes close to each other would not need to decode into similar faces;
+\item a fresh draw from $\mathcal{N}(0,1)$ would usually land in empty space the decoder never trained on, and decode into garbage.
+\end{itemize}
+\textbf{With the KL term} every face's recipe region is pulled to overlap the standard bell curve. That is what makes ``draw $z$ from the prior and decode'' a legitimate way to generate.
+
+\textbf{Interpolation.} Encode two faces to recipes $z_1$ and $z_2$, and walk between them:
+\[
+z(t) = (1 - t)\,z_1 + t\,z_2, \qquad t \text{ from } 0 \text{ to } 1.
+\]
+\textbf{Symbols.}
+\begin{itemize}[leftmargin=1.5em, itemsep=0pt]
+\item $z_1$ (``zed one''), $z_2$ (``zed two''): the recipes of face 1 and face 2.
+\item $t$ (``tee''): how far along the walk we are, 0 at face 1 and 1 at face 2.
+\item $z(t)$ (``zed of tee''): the blended recipe at position $t$.
+\end{itemize}
+\textbf{What it says.} Mix the two recipes: at $t = 0$ it is all face 1, at $t = 1$ all face 2, at $t = 0.5$ half and half. If the decoded faces change smoothly (a smile slowly widening, the head slowly turning), that is good evidence the recipe space is well organised. It is \emph{not} proof that any single recipe number means ``smile'' or ``head turn''.
+
+% ------------------------------------------------------------
+\subsection*{17. Posterior collapse}
+
+\textbf{What happens.} Suppose the decoder is very powerful, for example a PixelCNN, which paints each pixel by looking at the pixels already painted (the autoregressive idea from Week 2). Such a decoder can produce good faces without looking at $z$ at all. Then the cheapest way to raise the ELBO is to make the KL zero: the encoder outputs the prior for every image,
+\[
+\mathrm{KL}\big(q(z \mid x)\,\|\,p(z)\big) \to 0, \qquad q(z \mid x) \approx p(z) \text{ for every } x.
+\]
+\textbf{Symbols.} $\to 0$ (``goes to zero''). $\approx$ (``is approximately equal to'').
+
+\textbf{What it says.} The KL shrinks to nothing and the encoder's guess becomes the same plain prior for every image. The recipe carries no information about the image. It is the lazy encoder of Section 8, chosen on purpose by training.
+
+\textbf{Usual fixes.}
+\begin{itemize}[leftmargin=1.5em]
+\item \textbf{KL annealing (warm-up).} Multiply the KL by a weight that starts at 0 and rises slowly to 1. Early in training the encoder is free to put information into $z$; by the time the KL is fully on, the decoder already relies on $z$.
+\item \textbf{Free bits.} Do not penalise the KL below a small allowance $\lambda$ (``LAM-duh''): use $\max(\lambda, \mathrm{KL})$ (``max of lambda and KL'', the larger of the two), often per recipe number or group. Below the allowance, information in $z$ is free, so there is no reason to shrink it to zero.
+\item \textbf{Weaker decoder.} Limit how much the decoder can do on its own (for example, a smaller receptive field), so it is forced to use $z$.
+\end{itemize}
+
+% ------------------------------------------------------------
+\subsection*{18. $\beta$-VAE}
+
+Higgins et al.\ (2017) put a weight on the KL:
+\[
+\mathcal{L}_{\beta}(x) = \mathbb{E}_q\big[\log p(x \mid z)\big] - \beta\,\mathrm{KL}\big(q(z \mid x)\,\|\,p(z)\big).
+\]
+\textbf{Symbols.}
+\begin{itemize}[leftmargin=1.5em, itemsep=0pt]
+\item $\beta$ (``BAY-tuh''): a number you choose that scales the KL penalty.
+\item $\mathcal{L}_{\beta}(x)$ (``script L beta of ex''): the $\beta$-VAE objective (to maximise) for image $x$.
+\item The rest: reconstruction and KL as in the ELBO.
+\end{itemize}
+\textbf{What it says.} Same as the ELBO, but the KL is multiplied by $\beta$.
+\begin{itemize}[leftmargin=1.5em]
+\item $\beta = 1$: the ordinary VAE (the true ELBO).
+\item $\beta > 1$: more of the objective is spent keeping recipes close to the prior. Reconstructions get worse (blurrier faces), but the recipe numbers often become more independent of each other, so one number may end up controlling roughly one visible feature (``disentangled''). Higgins et al.\ describe this as squeezing the information through a narrower channel, so the model keeps only the most useful, separate factors.
+\item $\beta < 1$: sharper reconstructions, less regular recipe space.
+\end{itemize}
+For $\beta \ne 1$ (``beta not equal to one'') this is no longer a bound on $\log p(x)$. And $\beta$ is a tuning knob, not a guarantee: a large $\beta$ does not prove that each number means one human-meaningful feature.
+
+% ------------------------------------------------------------
+\subsection*{19. Conditional VAE (CVAE)}
+
+Pass a label (for example ``digit 7'', or ``smiling'') into both the encoder and the decoder. The same derivation as Section 6 now bounds the score of the image given the label:
+\[
+\log p(x \mid y) \;\ge\; \mathbb{E}_{q(z \mid x, y)}\big[\log p(x \mid z, y)\big] - \mathrm{KL}\big(q(z \mid x, y)\,\|\,p(z)\big).
+\]
+\textbf{Symbols.}
+\begin{itemize}[leftmargin=1.5em, itemsep=0pt]
+\item $y$ (``why''): the label, for example which digit.
+\item $\log p(x \mid y)$ (``log p of ex given why''): the score of the image among images with that label.
+\item $q(z \mid x, y)$ (``q of zed given ex and why''): the encoder, which now sees the image and its label.
+\item $p(x \mid z, y)$ (``p of ex given zed and why''): the decoder, which now gets the recipe and the label.
+\end{itemize}
+\textbf{What it says.} It is the ELBO again, with the label handed to both networks. \textbf{To generate} a new image of class $y$: draw $z \sim p(z)$, then decode with $(z, y)$. The label decides \emph{what} is drawn (which digit), the recipe decides \emph{how} (stroke thickness, slant).
+
+% ------------------------------------------------------------
+\subsection*{20. VQ-VAE: a discrete (codebook) recipe}
+
+van den Oord et al.\ (2017) replace the continuous recipe with a choice from a fixed list.
+\begin{itemize}[leftmargin=1.5em]
+\item There is a \textbf{codebook}: $K$ learned vectors $e_1, \dots, e_K$ (think of them as $K$ ``visual words'', for example 512 of them).
+\item The encoder outputs a vector, which is snapped to the nearest codebook vector:
+\[
+z_q(x) = e_k, \qquad k = \arg\min_{j}\,\big\| z_e(x) - e_j \big\|.
+\]
+\end{itemize}
+\textbf{Symbols.}
+\begin{itemize}[leftmargin=1.5em, itemsep=0pt]
+\item $K$ (``kay''): how many codebook vectors there are.
+\item $e_j$ (``ee jay''): codebook vector number $j$. $e_k$ (``ee kay''): the chosen one.
+\item $z_e(x)$ (``zed ee of ex''): the encoder's raw output for image $x$ (``e'' for encoder).
+\item $z_q(x)$ (``zed cue of ex''): the snapped, quantised recipe (``q'' for quantised).
+\item $\|\cdot\|$ (``norm of'', or ``length of''): the distance between two vectors.
+\item $\arg\min_j$ (``arg min over jay''): the value of $j$ that makes the expression smallest.
+\end{itemize}
+\textbf{What it says.} Find the codebook vector closest to what the encoder output, and use that one as the recipe. For an image, this is done at every location of a small grid, so an image becomes a grid of codebook indices, like a mosaic of tiles.
+
+\textbf{Problem: ``snap to nearest'' has slope zero} almost everywhere (a tiny move of $z_e$ usually does not change which tile is nearest). \textbf{Fix: straight-through.} On the backward pass, copy the decoder's gradient straight onto $z_e$, pretending the snapping step was ``output $=$ input''.
+
+\textbf{Loss} (to minimise):
+\[
+\mathcal{L} = -\log p\big(x \mid z_q(x)\big) + \big\|\mathrm{sg}[z_e(x)] - e_k\big\|^2 + \beta\,\big\|z_e(x) - \mathrm{sg}[e_k]\big\|^2.
+\]
+\textbf{Symbols.}
+\begin{itemize}[leftmargin=1.5em, itemsep=0pt]
+\item $\mathcal{L}$ (``script L''): the VQ-VAE loss.
+\item $\mathrm{sg}[\cdot]$ (``stop-gradient of''): treat what is inside as a constant; do not send slopes through it.
+\item $\|\ldots\|^2$ (``squared norm'', or ``squared distance'').
+\item $\beta$ (``BAY-tuh''): a small weight (0.25 in the paper), unrelated to the $\beta$-VAE's $\beta$.
+\end{itemize}
+\textbf{What it says.}
+\begin{itemize}[leftmargin=1.5em]
+\item First term: reconstruction, as before.
+\item Second term (codebook loss): moves the chosen codebook vector toward the encoder's output (the encoder is frozen here by the stop-gradient).
+\item Third term (\textbf{commitment loss}): keeps the encoder's output close to the code it chose, so it does not wander off (the codebook is frozen here).
+\end{itemize}
+There is no separate KL term: with a uniform prior over the $K$ codes and a certain (one-hot) encoder choice, the KL is the constant $\log K$, so it is ignored.
+
+\textbf{Sampling needs a second model.} Picking codebook indices at random gives nonsense mosaics. So after training, a second model learns a \textbf{prior over the grid of indices}, usually an autoregressive model from Week 2 (PixelCNN in the paper). To generate: sample a grid of indices with that model, look up the codebook vectors, decode.
+
+% ------------------------------------------------------------
+\subsection*{21. Scoring an image honestly: estimating $\log p(x)$}
+
+The ELBO is below $\log p(x)$ by an unknown gap. To report a model's actual score (Kingma and Welling 2019; Prince 17.8), use the encoder as a guide for an average, which is Step 1 of Section 6 without Jensen:
+\[
+p(x) = \mathbb{E}_q\!\left[\frac{p(x, z)}{q(z \mid x)}\right]
+\approx \frac{1}{K}\sum_{k=1}^{K}\frac{p(x \mid z^{(k)})\,p(z^{(k)})}{q(z^{(k)} \mid x)}, \qquad z^{(k)} \sim q(z \mid x).
+\]
+\textbf{Symbols.}
+\begin{itemize}[leftmargin=1.5em, itemsep=0pt]
+\item $K$ (``kay''): how many recipes we sample (a different $K$ from the VQ-VAE codebook size).
+\item $z^{(k)}$ (``zed kay''): the $k$-th recipe drawn from the encoder.
+\item $\frac{1}{K}\sum_{k=1}^{K}$ (``one over kay times the sum over kay''): the average over the $K$ samples.
+\item $\frac{p(x \mid z^{(k)})\,p(z^{(k)})}{q(z^{(k)} \mid x)}$ (``decoder times prior, over encoder''): the importance weight of sample $k$.
+\end{itemize}
+\textbf{What it says.} Estimate the image's probability by drawing recipes where the encoder thinks they are likely, and correcting each one by how much more or less likely the true model finds it. This is called \emph{importance sampling}. Take the log of this average. With $K = 1$ (on average) it gives back the ELBO; as $K$ grows it approaches the true $\log p(x)$.
+
+Reporting the ELBO as if it were $\log p(x)$ is the lazy encoder's mistake: it reported $-3.419$ when the truth was $-2.266$.
+
+% ------------------------------------------------------------
+\subsection*{22. VAE next to the autoregressive models of Week 2}
+
+\begin{center}
+\begin{tabular}{>{\raggedright\arraybackslash}p{0.17\textwidth} >{\raggedright\arraybackslash}p{0.36\textwidth} >{\raggedright\arraybackslash}p{0.38\textwidth}}
+\toprule
+ & Autoregressive (Week 2) & VAE (Week 3) \\
+\midrule
+Score $\log p(x)$ & Exact, by the chain rule of probability (pixel by pixel) & Only a lower bound (ELBO); the gap is $\mathrm{KL}(q \| p(z \mid x))$ \\
+New sample & One pixel at a time (slow) & One recipe from the prior, one pass of the decoder (fast) \\
+A recipe / code & None & $\mu$, $\sigma$ from the encoder \\
+Typical look & Sharp & Often blurry (Gaussian decoder averages) \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+In the toy model the gap was a number we could subtract (1.153 for the lazy encoder). On real images it is a number we usually cannot compute.
+
+% ------------------------------------------------------------
+\subsection*{23. Self-check (from the last slide, with answers)}
+
+\textbf{Q1.} For $x = 2$, what are $p(z)$, $p(z \mid x)$, and a legal way to draw a new $x$?\\
+\textbf{A1.} $p(z) = \mathcal{N}(0,1)$; $p(z \mid x = 2) = \mathcal{N}(1, \tfrac12)$; draw $z \sim \mathcal{N}(0,1)$, then $x \sim \mathcal{N}(z, 1)$.
+
+\textbf{Q2.} Which KL is the gap, and which KL is inside the ELBO?\\
+\textbf{A2.} Gap: $\mathrm{KL}(q \| p(z \mid x))$, against the true posterior. Inside the ELBO: $\mathrm{KL}(q \| p(z))$, against the prior.
+
+\textbf{Q3.} Compute the KL for $q = \mathcal{N}(0,1)$. Why is the ELBO still not equal to $\log p(2)$?\\
+\textbf{A3.} $\tfrac12(0 + 1 - 0 - 1) = 0$. The ELBO is still low because reconstruction averages over a recipe that ignores the image ($-3.419$), and the gap is 1.153.
+
+\textbf{Q4.} Write $\partial z/\partial\mu$ and $\partial z/\partial\sigma$. Why does $\varepsilon = 0$ stop the reconstruction from training $\sigma$?\\
+\textbf{A4.} 1 and $\varepsilon$. If $\varepsilon = 0$, then $\partial z/\partial\sigma = 0$, so that sample sends no reconstruction signal to $\sigma$.
+
+% ------------------------------------------------------------
+\subsection*{24. Key equations on one page}
+
+\begin{center}
+\begin{tabular}{>{\raggedright\arraybackslash}p{0.3\textwidth} >{\raggedright\arraybackslash}p{0.62\textwidth}}
+\toprule
+Idea & Equation \\
+\midrule
+Model & $p(z) = \mathcal{N}(0, I)$, \quad $p_\theta(x \mid z)$, \quad $p(x,z) = p(x \mid z)\,p(z)$ \\
+Score (hard) & $p(x) = \int p(x \mid z)\,p(z)\,dz$ \\
+Encoder & $q_\phi(z \mid x) = \mathcal{N}(\mu_\phi(x), \sigma^2_\phi(x))$ \\
+Jensen & $\log\mathbb{E}[u] \ge \mathbb{E}[\log u]$ \\
+ELBO & $\mathbb{E}_q[\log p(x \mid z)] - \mathrm{KL}(q(z \mid x)\,\|\,p(z))$ \\
+Gap & $\log p(x) - \mathrm{ELBO} = \mathrm{KL}(q(z \mid x)\,\|\,p(z \mid x)) \ge 0$ \\
+Gaussian KL & $\tfrac12(\mu^2 + \sigma^2 - \log\sigma^2 - 1)$, summed over recipe numbers \\
+KL slopes & $\partial/\partial\mu = \mu$, \quad $\partial/\partial\sigma = \sigma - 1/\sigma$, \quad $\partial/\partial\ell = \tfrac12(\sigma^2 - 1)$ \\
+Reconstruction slope & $\partial_z \log p(x \mid z) = (x - f_\theta(z))\,f'_\theta(z)$ \\
+Reparameterisation & $z = \mu + \sigma\varepsilon$, \quad $\varepsilon \sim \mathcal{N}(0,1)$, \quad $\partial z/\partial\mu = 1$, \quad $\partial z/\partial\sigma = \varepsilon$ \\
+Toy answers & $p(x) = \mathcal{N}(0,2)$, \quad $\log p(2) = -2.266$, \quad $p(z \mid 2) = \mathcal{N}(1, \tfrac12)$ \\
+$\beta$-VAE & $\mathbb{E}_q[\log p(x \mid z)] - \beta\,\mathrm{KL}(q \,\|\, p(z))$ \\
+Interpolation & $z(t) = (1-t)z_1 + t z_2$ \\
+VQ-VAE loss & $-\log p(x \mid z_q) + \|\mathrm{sg}[z_e] - e_k\|^2 + \beta\|z_e - \mathrm{sg}[e_k]\|^2$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+% ------------------------------------------------------------
+\subsection*{References}
+
+\begin{itemize}[leftmargin=1.5em]
+\item S.\ J.\ D.\ Prince, \emph{Understanding Deep Learning}, Ch.~17: 17.1--17.3 (the model), 17.4--17.5 (the bound), 17.6--17.7 (the VAE and reparameterisation).
+\item D.\ P.\ Kingma and M.\ Welling, Auto-Encoding Variational Bayes, ICLR 2014.
+\item D.\ P.\ Kingma and M.\ Welling, An Introduction to Variational Autoencoders, 2019, Sections 1--2.
+\item J.\ M.\ Tomczak, \emph{Deep Generative Modeling}, Ch.~4.
+\item I.\ Higgins et al., $\beta$-VAE: Learning Basic Visual Concepts with a Constrained Variational Framework, ICLR 2017.
+\item A.\ van den Oord, O.\ Vinyals, K.\ Kavukcuoglu, Neural Discrete Representation Learning (VQ-VAE), NeurIPS 2017.
+\end{itemize}
