@@ -1,3 +1,8 @@
+# Conversation
+
+First ask this - Explain 'x' in one sentence, plain English, no academic jargon. 
+Then keep asking focused, to the point questions. 
+
 # Explain Pages
 
 First, go through all the project files. Understand the context properly. 
